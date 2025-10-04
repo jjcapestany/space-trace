@@ -17,6 +17,9 @@ import * as satellite from "satellite.js";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import RegistrationPanel, { RegistrationInformationType as BaseRegistrationInfo } from "./RegistrationPanel/RegistrationPanel";
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
+import DeleteIcon from '@mui/icons-material/Delete';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import { Stack } from '@mui/material';
 import {registerFlight} from './RegistrationPanel/client/flightRegistrationClient';
 import {Alert, Snackbar} from "@mui/material";
@@ -419,13 +422,13 @@ export const Globe = () => {
                                                 onClick={() => toggleFlightVisibility(flight.id)}
                                                 className="flex-1 bg-gray-500 hover:bg-gray-700 px-2 py-1 rounded text-xs flex items-center justify-center gap-1"
                                             >
-                                                {flight.visible ? 'Hide' : 'Show'}
+                                                {flight.visible ? <VisibilityIcon/> : <VisibilityOffIcon/>}
                                             </button>
                                             <button
                                                 onClick={() => deleteFlight(flight.id)}
                                                 className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
                                             >
-                                                -
+                                                <DeleteIcon/>
                                             </button>
                                         </div>
                                     </div>

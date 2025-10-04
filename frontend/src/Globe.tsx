@@ -14,6 +14,7 @@ import {
 } from "cesium";
 import * as satellite from "satellite.js";
 import "cesium/Build/Cesium/Widgets/widgets.css";
+import RegistrationSidePanel from "./RegistrationPanel/RegistrationPanel";
 
 // Simple token for demo purposes
 Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZTkyYmQ4MS0wM2MwLTQ0YzYtYTc0MS1kYjQwNjZjODRjOWUiLCJpZCI6MzQ3MjI0LCJpYXQiOjE3NTk2MDA2MTB9.wiksTWk3Mhnj7FRgME5pKyowzjZwDtYKSruNoxrDIHc";
@@ -41,6 +42,7 @@ export const Globe = () => {
     const flightEntitiesRef = useRef<any[]>([]);
     const [issLoaded, setIssLoaded] = useState(false);
     const [flightLoaded, setFlightLoaded] = useState(false);
+    const [isPanelOpen, setIsPanelOpen] = useState(false);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -315,70 +317,105 @@ export const Globe = () => {
         }
     };
 
+    const handleRegistrationSubmit = (data: any) => {
+        console.log('Flight registered:', data);
+        // You can use this data to create a new flight path on the globe
+        setIsPanelOpen(false);
+    };
+
     // ===== UI =====
     return (
-        <div className="relative w-full h-screen">
-            <div ref={containerRef} className="w-full h-full" />
-
-            <div className="absolute top-4 left-4 bg-black bg-opacity-90 text-white p-6 rounded-lg max-w-sm z-40">
-                <h3 className="text-2xl font-bold mb-4">🌍 Space Tracker</h3>
-
-                {/* ISS Section */}
-                <div className="mb-4 pb-4 border-b border-gray-700">
-                    <h4 className="text-lg font-semibold mb-2 text-yellow-400">ISS Tracker</h4>
-                    {issLoaded ? (
-                        <div className="space-y-2">
-                            <div className="text-sm text-green-400">✓ ISS Loaded</div>
-                            <button onClick={trackISS} className="w-full bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded">
-                                Track ISS
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="text-sm text-gray-400">Loading ISS...</div>
-                    )}
-                </div>
-
-                {/* Blue Origin Section */}
-                <div className="mb-4 pb-4 border-b border-gray-700">
-                    <h4 className="text-lg font-semibold mb-2 text-cyan-400">Blue Origin Flight Path</h4>
-                    {!flightLoaded ? (
-                        <button onClick={loadBlueOriginFlight} className="w-full bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded">
-                            Show Flight Path
-                        </button>
-                    ) : (
-                        <div className="space-y-2">
-                            <div className="text-sm text-green-400">✓ Flight Path Displayed</div>
-                            <div className="text-xs text-gray-400 mt-2">
-                                • 🚀 Red = Launch<br />
-                                • 🟢 Green = Apogee<br />
-                                • 🟠 Orange = Landing
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                <div>
-                    <h4 className="text-sm font-semibold mb-2 text-gray-400">Camera</h4>
-                    <button onClick={resetCamera} className="w-full bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">
-                        Reset Camera
-                    </button>
-                </div>
+        <div className="relative w-full h-screen flex">
+            {/* Registration Side Panel - 30% width on LEFT */}
+            <div
+                className={`h-full bg-gray-900 shadow-2xl transition-all duration-300 ease-in-out z-50 ${
+                    isPanelOpen ? 'w-[30%]' : 'w-0'
+                } overflow-hidden`}
+            >
+                {isPanelOpen && (
+                    <RegistrationSidePanel
+                        open={isPanelOpen}
+                        onClose={() => setIsPanelOpen(false)}
+                        onSubmit={handleRegistrationSubmit}
+                    />
+                )}
             </div>
 
-            {/* Legend */}
-            <div className="absolute bottom-4 left-4 bg-black bg-opacity-90 text-white px-4 py-3 rounded text-xs z-40">
-                <div className="space-y-1">
-                    <div className="flex items-center">
-                        <div className="w-3 h-3 rounded-full bg-yellow-400 mr-2" />
-                        <span>ISS (Orbital)</span>
+            {/* Main Globe Container - Takes remaining space */}
+            <div className="relative flex-1 h-full">
+                <div ref={containerRef} className="w-full h-full" />
+
+                {/* Space Tracker Controls */}
+                <div className="absolute top-4 left-4 bg-black bg-opacity-90 text-white p-6 rounded-lg max-w-sm z-40">
+                    <h3 className="text-2xl font-bold mb-4">🌍 Space Tracker</h3>
+
+                    {/* Registration Button */}
+                    <div className="mb-4 pb-4 border-b border-gray-700">
+                        <button
+                            onClick={() => setIsPanelOpen(!isPanelOpen)}
+                            className="w-full bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded font-semibold transition-colors"
+                        >
+                            {isPanelOpen ? 'Close Registration' : '+ Register Flight'}
+                        </button>
                     </div>
-                    <div className="flex items-center">
-                        <div className="w-3 h-3 rounded-full bg-cyan-400 mr-2" />
-                        <span>Blue Origin (Suborbital)</span>
+
+                    {/* ISS Section */}
+                    <div className="mb-4 pb-4 border-b border-gray-700">
+                        <h4 className="text-lg font-semibold mb-2 text-yellow-400">ISS Tracker</h4>
+                        {issLoaded ? (
+                            <div className="space-y-2">
+                                <div className="text-sm text-green-400">✓ ISS Loaded</div>
+                                <button onClick={trackISS} className="w-full bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded">
+                                    Track ISS
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="text-sm text-gray-400">Loading ISS...</div>
+                        )}
                     </div>
-                    <div className="flex items-center">
-                        <div className="w-3 h-3 rounded-full bg-red-500 mr-2" />
-                        <span>Launch Site</span>
+
+                    {/* Blue Origin Section */}
+                    <div className="mb-4 pb-4 border-b border-gray-700">
+                        <h4 className="text-lg font-semibold mb-2 text-cyan-400">Blue Origin Flight Path</h4>
+                        {!flightLoaded ? (
+                            <button onClick={loadBlueOriginFlight} className="w-full bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded">
+                                Show Flight Path
+                            </button>
+                        ) : (
+                            <div className="space-y-2">
+                                <div className="text-sm text-green-400">✓ Flight Path Displayed</div>
+                                <div className="text-xs text-gray-400 mt-2">
+                                    • 🚀 Red = Launch<br />
+                                    • 🟢 Green = Apogee<br />
+                                    • 🟠 Orange = Landing
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div>
+                        <h4 className="text-sm font-semibold mb-2 text-gray-400">Camera</h4>
+                        <button onClick={resetCamera} className="w-full bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">
+                            Reset Camera
+                        </button>
+                    </div>
+                </div>
+
+                {/* Legend */}
+                <div className="absolute bottom-4 left-4 bg-black bg-opacity-90 text-white px-4 py-3 rounded text-xs z-40">
+                    <div className="space-y-1">
+                        <div className="flex items-center">
+                            <div className="w-3 h-3 rounded-full bg-yellow-400 mr-2" />
+                            <span>ISS (Orbital)</span>
+                        </div>
+                        <div className="flex items-center">
+                            <div className="w-3 h-3 rounded-full bg-cyan-400 mr-2" />
+                            <span>Blue Origin (Suborbital)</span>
+                        </div>
+                        <div className="flex items-center">
+                            <div className="w-3 h-3 rounded-full bg-red-500 mr-2" />
+                            <span>Launch Site</span>
+                        </div>
                     </div>
                 </div>
             </div>

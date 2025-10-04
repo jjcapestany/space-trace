@@ -4,7 +4,9 @@
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  background-image: url("../assets/background.jpg");
+  width: '100vw';
+  height: 100vh;
+  background-image: url("./public/background.jpg");
  background-size: contain;
   font-synthesis: none;
   text-rendering: optimizeLegibility;

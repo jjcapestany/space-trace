@@ -3,7 +3,6 @@ import './App.css';
 import { Globe } from './Globe';
 
 function App() {
-  const [count, setCount] = useState(0);
 
   return (
     <div>

@@ -5,7 +5,7 @@
   line-height: 1.5;
   font-weight: 400;
   width: '100vw';
-  height: 100vh;
+  height: '100vh';
   background-image: url("./public/background.jpg");
  background-size: contain;
   font-synthesis: none;

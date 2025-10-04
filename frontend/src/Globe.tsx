@@ -335,10 +335,10 @@ export const Globe = () => {
             <div className="relative flex-1 h-full">
                 <div ref={containerRef} className="w-full h-full" />
 
-                <div className="absolute top-4 left-4 bg-black bg-opacity-90 text-white p-6 rounded-lg max-w-sm z-40">
-                    <Stack direction={'row'} gap={1}>
+                <div className="absolute top-4 left-4 bg-opacity-50 text-white p-6 rounded-lg max-w-sm z-40">
+                    <Stack direction={'row'} gap={1} sx={{backgroundColor: 'black', p: 1, borderRadius: 2}} className="mb-4">
                         <RocketLaunchIcon sx={{ color: '#bf60faff' }} />
-                        <h3 className="text-2xl font-bold mb-4">Space Trace</h3>
+                        <h3 className="text-2xl font-bold">Space Trace</h3>
                     </Stack>
 
                     <div className="mb-4 pb-4 border-b border-gray-700">
@@ -365,7 +365,7 @@ export const Globe = () => {
                                         <div className="flex gap-1">
                                             <button
                                                 onClick={() => toggleFlightVisibility(flight.id)}
-                                                className="flex-1 bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-xs flex items-center justify-center gap-1"
+                                                className="flex-1 bg-gray-500 hover:bg-gray-700 px-2 py-1 rounded text-xs flex items-center justify-center gap-1"
                                             >
                                                 {flight.visible ? 'Hide' : 'Show'}
                                             </button>
@@ -383,7 +383,7 @@ export const Globe = () => {
                     </div>
 
                     <div>
-                        <h4 className="text-sm font-semibold mb-2 text-gray-400">Camera</h4>
+                        <h4 className="text-sm font-semibold mb-2 text-white-400">Camera</h4>
                         <button onClick={resetCamera} className="w-full bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">
                             Reset Camera
                         </button>

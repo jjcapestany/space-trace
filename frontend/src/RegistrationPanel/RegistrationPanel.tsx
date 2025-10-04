@@ -1,4 +1,19 @@
-import React, { useState } from 'react';
+import { useEffect, useRef, useState } from "react";
+import {
+    Ion,
+    Viewer,
+    Terrain,
+    Cartesian3,
+    Color,
+    LabelStyle,
+    VerticalOrigin,
+    Cartesian2,
+    Math as CesiumMath,
+    createOsmBuildingsAsync,
+    PolylineGlowMaterialProperty
+} from "cesium";
+import * as satellite from "satellite.js";
+import "cesium/Build/Cesium/Widgets/widgets.css";
 import {
     Box,
     Typography,
@@ -10,6 +25,11 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
+import DeleteIcon from '@mui/icons-material/Delete';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+
+Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZTkyYmQ4MS0wM2MwLTQ0YzYtYTc0MS1kYjQwNjZjODRjOWUiLCJpZCI6MzQ3MjI0LCJpYXQiOjE3NTk2MDA2MTB9.wiksTWk3Mhnj7FRgME5pKyowzjZwDtYKSruNoxrDIHc";
 
 export interface RegistrationInformationType {
     id: number;
@@ -24,40 +44,36 @@ export interface RegistrationInformationType {
     modelOfSpaceCraft: string;
 }
 
-interface RegistrationSidePanelProps {
+interface RegisteredFlight extends RegistrationInformationType {
+    visible: boolean;
+    entities: any[];
+}
+
+// Registration Panel Component
+export default function RegistrationSidePanel({
+    open,
+    onClose,
+    onSubmit,
+}: {
     open: boolean;
     onClose: () => void;
     onSubmit: (data: Omit<RegistrationInformationType, 'id'>) => void;
-    initialData?: RegistrationInformationType;
-}
-
-function RegistrationSidePanel({
-                                   open,
-                                   onClose,
-                                   onSubmit,
-                                   initialData,
-                               }: RegistrationSidePanelProps) {
+}) {
     const [formData, setFormData] = useState({
-        flightName: initialData?.flightName || '',
-        startingLatitude: initialData?.startingLatitude?.toString() || '',
-        startingLongitude: initialData?.startingLongitude?.toString() || '',
-        endingLatitude: initialData?.endingLatitude?.toString() || '',
-        endingLongitude: initialData?.endingLongitude?.toString() || '',
-        launchDateAndTime: initialData?.launchDateAndTime
-            ? new Date(initialData.launchDateAndTime).toISOString().slice(0, 16)
-            : '',
-        landingDateAndTime: initialData?.landingDateAndTime
-            ? new Date(initialData.landingDateAndTime).toISOString().slice(0, 16)
-            : '',
-        maxAltitude: initialData?.maxAltitude?.toString() || '',
-        modelOfSpaceCraft: initialData?.modelOfSpaceCraft || '',
+        flightName: '',
+        startingLatitude: '',
+        startingLongitude: '',
+        endingLatitude: '',
+        endingLongitude: '',
+        launchDateAndTime: '',
+        landingDateAndTime: '',
+        maxAltitude: '',
+        modelOfSpaceCraft: '',
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    const handleChange = (field: string) => (
-        event: React.ChangeEvent<HTMLInputElement>
-    ) => {
+    const handleChange = (field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
         setFormData((prev) => ({
             ...prev,
             [field]: event.target.value,
@@ -139,6 +155,7 @@ function RegistrationSidePanel({
                 modelOfSpaceCraft: formData.modelOfSpaceCraft,
             };
             onSubmit(submitData);
+            handleReset();
         }
     };
 
@@ -160,41 +177,18 @@ function RegistrationSidePanel({
     if (!open) return null;
 
     return (
-        <Box
-            sx={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                bgcolor: '#1a1a1a',
-                color: '#ffffff'
-            }}
-        >
-            <Box
-                sx={{
-                    p: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    borderBottom: '1px solid #333'
-                }}
-            >
+        <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#1a1a1a', color: '#ffffff' }}>
+            <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #333' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <RocketLaunchIcon sx={{ color: '#60a5fa' }} />
-                    <Typography variant="h6" sx={{ color: '#ffffff' }}>
-                        {initialData ? 'Edit Flight Registration' : 'New Flight Registration'}
-                    </Typography>
+                    <Typography variant="h6" sx={{ color: '#ffffff' }}>New Flight Registration</Typography>
                 </Box>
                 <IconButton onClick={onClose} size="small" sx={{ color: '#9ca3af' }}>
                     <CloseIcon />
                 </IconButton>
             </Box>
 
-            <Box
-                component="form"
-                onSubmit={handleSubmit}
-                sx={{ flex: 1, overflowY: 'auto', p: 3 }}
-            >
+            <Box component="form" onSubmit={handleSubmit} sx={{ flex: 1, overflowY: 'auto', p: 3 }}>
                 <Stack spacing={3}>
                     <TextField
                         label="Flight Name"
@@ -205,12 +199,7 @@ function RegistrationSidePanel({
                         required
                         fullWidth
                         sx={{
-                            '& .MuiOutlinedInput-root': {
-                                color: '#ffffff',
-                                '& fieldset': { borderColor: '#4b5563' },
-                                '&:hover fieldset': { borderColor: '#6b7280' },
-                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
-                            },
+                            '& .MuiOutlinedInput-root': { color: '#ffffff', '& fieldset': { borderColor: '#4b5563' }, '&:hover fieldset': { borderColor: '#6b7280' }, '&.Mui-focused fieldset': { borderColor: '#60a5fa' } },
                             '& .MuiInputLabel-root': { color: '#9ca3af' },
                             '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
                             '& .MuiFormHelperText-root': { color: '#9ca3af' },
@@ -218,268 +207,42 @@ function RegistrationSidePanel({
                         }}
                     />
 
-                    <Divider
-                        textAlign="left"
-                        sx={{
-                            borderColor: '#374151',
-                            '&::before, &::after': { borderColor: '#374151' }
-                        }}
-                    >
-                        <Typography variant="caption" sx={{ color: '#9ca3af' }}>
-                            Launch Location
-                        </Typography>
+                    <Divider textAlign="left" sx={{ borderColor: '#374151', '&::before, &::after': { borderColor: '#374151' } }}>
+                        <Typography variant="caption" sx={{ color: '#9ca3af' }}>Launch Location</Typography>
                     </Divider>
 
-                    <TextField
-                        label="Starting Latitude"
-                        type="number"
-                        value={formData.startingLatitude}
-                        onChange={handleChange('startingLatitude')}
-                        error={!!errors.startingLatitude}
-                        helperText={errors.startingLatitude || 'Range: -90 to 90'}
-                        required
-                        fullWidth
-                        inputProps={{ step: 'any' }}
-                        sx={{
-                            '& .MuiOutlinedInput-root': {
-                                color: '#ffffff',
-                                '& fieldset': { borderColor: '#4b5563' },
-                                '&:hover fieldset': { borderColor: '#6b7280' },
-                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
-                            },
-                            '& .MuiInputLabel-root': { color: '#9ca3af' },
-                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
-                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
-                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
-                        }}
-                    />
+                    <TextField label="Starting Latitude" type="number" value={formData.startingLatitude} onChange={handleChange('startingLatitude')} error={!!errors.startingLatitude} helperText={errors.startingLatitude || 'Range: -90 to 90'} required fullWidth inputProps={{ step: 'any' }} sx={{ '& .MuiOutlinedInput-root': { color: '#ffffff', '& fieldset': { borderColor: '#4b5563' }, '&:hover fieldset': { borderColor: '#6b7280' }, '&.Mui-focused fieldset': { borderColor: '#60a5fa' } }, '& .MuiInputLabel-root': { color: '#9ca3af' }, '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' }, '& .MuiFormHelperText-root': { color: '#9ca3af' }, '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' } }} />
 
-                    <TextField
-                        label="Starting Longitude"
-                        type="number"
-                        value={formData.startingLongitude}
-                        onChange={handleChange('startingLongitude')}
-                        error={!!errors.startingLongitude}
-                        helperText={errors.startingLongitude || 'Range: -180 to 180'}
-                        required
-                        fullWidth
-                        inputProps={{ step: 'any' }}
-                        sx={{
-                            '& .MuiOutlinedInput-root': {
-                                color: '#ffffff',
-                                '& fieldset': { borderColor: '#4b5563' },
-                                '&:hover fieldset': { borderColor: '#6b7280' },
-                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
-                            },
-                            '& .MuiInputLabel-root': { color: '#9ca3af' },
-                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
-                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
-                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
-                        }}
-                    />
+                    <TextField label="Starting Longitude" type="number" value={formData.startingLongitude} onChange={handleChange('startingLongitude')} error={!!errors.startingLongitude} helperText={errors.startingLongitude || 'Range: -180 to 180'} required fullWidth inputProps={{ step: 'any' }} sx={{ '& .MuiOutlinedInput-root': { color: '#ffffff', '& fieldset': { borderColor: '#4b5563' }, '&:hover fieldset': { borderColor: '#6b7280' }, '&.Mui-focused fieldset': { borderColor: '#60a5fa' } }, '& .MuiInputLabel-root': { color: '#9ca3af' }, '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' }, '& .MuiFormHelperText-root': { color: '#9ca3af' }, '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' } }} />
 
-                    <Divider
-                        textAlign="left"
-                        sx={{
-                            borderColor: '#374151',
-                            '&::before, &::after': { borderColor: '#374151' }
-                        }}
-                    >
-                        <Typography variant="caption" sx={{ color: '#9ca3af' }}>
-                            Landing Location
-                        </Typography>
+                    <Divider textAlign="left" sx={{ borderColor: '#374151', '&::before, &::after': { borderColor: '#374151' } }}>
+                        <Typography variant="caption" sx={{ color: '#9ca3af' }}>Landing Location</Typography>
                     </Divider>
 
-                    <TextField
-                        label="Ending Latitude"
-                        type="number"
-                        value={formData.endingLatitude}
-                        onChange={handleChange('endingLatitude')}
-                        error={!!errors.endingLatitude}
-                        helperText={errors.endingLatitude || 'Range: -90 to 90'}
-                        required
-                        fullWidth
-                        inputProps={{ step: 'any' }}
-                        sx={{
-                            '& .MuiOutlinedInput-root': {
-                                color: '#ffffff',
-                                '& fieldset': { borderColor: '#4b5563' },
-                                '&:hover fieldset': { borderColor: '#6b7280' },
-                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
-                            },
-                            '& .MuiInputLabel-root': { color: '#9ca3af' },
-                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
-                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
-                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
-                        }}
-                    />
+                    <TextField label="Ending Latitude" type="number" value={formData.endingLatitude} onChange={handleChange('endingLatitude')} error={!!errors.endingLatitude} helperText={errors.endingLatitude || 'Range: -90 to 90'} required fullWidth inputProps={{ step: 'any' }} sx={{ '& .MuiOutlinedInput-root': { color: '#ffffff', '& fieldset': { borderColor: '#4b5563' }, '&:hover fieldset': { borderColor: '#6b7280' }, '&.Mui-focused fieldset': { borderColor: '#60a5fa' } }, '& .MuiInputLabel-root': { color: '#9ca3af' }, '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' }, '& .MuiFormHelperText-root': { color: '#9ca3af' }, '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' } }} />
 
-                    <TextField
-                        label="Ending Longitude"
-                        type="number"
-                        value={formData.endingLongitude}
-                        onChange={handleChange('endingLongitude')}
-                        error={!!errors.endingLongitude}
-                        helperText={errors.endingLongitude || 'Range: -180 to 180'}
-                        required
-                        fullWidth
-                        inputProps={{ step: 'any' }}
-                        sx={{
-                            '& .MuiOutlinedInput-root': {
-                                color: '#ffffff',
-                                '& fieldset': { borderColor: '#4b5563' },
-                                '&:hover fieldset': { borderColor: '#6b7280' },
-                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
-                            },
-                            '& .MuiInputLabel-root': { color: '#9ca3af' },
-                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
-                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
-                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
-                        }}
-                    />
+                    <TextField label="Ending Longitude" type="number" value={formData.endingLongitude} onChange={handleChange('endingLongitude')} error={!!errors.endingLongitude} helperText={errors.endingLongitude || 'Range: -180 to 180'} required fullWidth inputProps={{ step: 'any' }} sx={{ '& .MuiOutlinedInput-root': { color: '#ffffff', '& fieldset': { borderColor: '#4b5563' }, '&:hover fieldset': { borderColor: '#6b7280' }, '&.Mui-focused fieldset': { borderColor: '#60a5fa' } }, '& .MuiInputLabel-root': { color: '#9ca3af' }, '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' }, '& .MuiFormHelperText-root': { color: '#9ca3af' }, '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' } }} />
 
-                    <Divider
-                        textAlign="left"
-                        sx={{
-                            borderColor: '#374151',
-                            '&::before, &::after': { borderColor: '#374151' }
-                        }}
-                    >
-                        <Typography variant="caption" sx={{ color: '#9ca3af' }}>
-                            Flight Details
-                        </Typography>
+                    <Divider textAlign="left" sx={{ borderColor: '#374151', '&::before, &::after': { borderColor: '#374151' } }}>
+                        <Typography variant="caption" sx={{ color: '#9ca3af' }}>Flight Details</Typography>
                     </Divider>
 
-                    <TextField
-                        label="Launch Date and Time"
-                        type="datetime-local"
-                        value={formData.launchDateAndTime}
-                        onChange={handleChange('launchDateAndTime')}
-                        error={!!errors.launchDateAndTime}
-                        helperText={errors.launchDateAndTime}
-                        required
-                        fullWidth
-                        InputLabelProps={{ shrink: true }}
-                        sx={{
-                            '& .MuiOutlinedInput-root': {
-                                color: '#ffffff',
-                                '& fieldset': { borderColor: '#4b5563' },
-                                '&:hover fieldset': { borderColor: '#6b7280' },
-                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
-                            },
-                            '& .MuiInputLabel-root': { color: '#9ca3af' },
-                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
-                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
-                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
-                        }}
-                    />
+                    <TextField label="Launch Date and Time" type="datetime-local" value={formData.launchDateAndTime} onChange={handleChange('launchDateAndTime')} error={!!errors.launchDateAndTime} helperText={errors.launchDateAndTime} required fullWidth InputLabelProps={{ shrink: true }} sx={{ '& .MuiOutlinedInput-root': { color: '#ffffff', '& fieldset': { borderColor: '#4b5563' }, '&:hover fieldset': { borderColor: '#6b7280' }, '&.Mui-focused fieldset': { borderColor: '#60a5fa' } }, '& .MuiInputLabel-root': { color: '#9ca3af' }, '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' }, '& .MuiFormHelperText-root': { color: '#9ca3af' }, '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' } }} />
 
-                    <TextField
-                        label="Landing Date and Time"
-                        type="datetime-local"
-                        value={formData.landingDateAndTime}
-                        onChange={handleChange('landingDateAndTime')}
-                        error={!!errors.landingDateAndTime}
-                        helperText={errors.landingDateAndTime}
-                        required
-                        fullWidth
-                        InputLabelProps={{ shrink: true }}
-                        sx={{
-                            '& .MuiOutlinedInput-root': {
-                                color: '#ffffff',
-                                '& fieldset': { borderColor: '#4b5563' },
-                                '&:hover fieldset': { borderColor: '#6b7280' },
-                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
-                            },
-                            '& .MuiInputLabel-root': { color: '#9ca3af' },
-                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
-                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
-                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
-                        }}
-                    />
+                    <TextField label="Landing Date and Time" type="datetime-local" value={formData.landingDateAndTime} onChange={handleChange('landingDateAndTime')} error={!!errors.landingDateAndTime} helperText={errors.landingDateAndTime} required fullWidth InputLabelProps={{ shrink: true }} sx={{ '& .MuiOutlinedInput-root': { color: '#ffffff', '& fieldset': { borderColor: '#4b5563' }, '&:hover fieldset': { borderColor: '#6b7280' }, '&.Mui-focused fieldset': { borderColor: '#60a5fa' } }, '& .MuiInputLabel-root': { color: '#9ca3af' }, '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' }, '& .MuiFormHelperText-root': { color: '#9ca3af' }, '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' } }} />
 
-                    <TextField
-                        label="Max Altitude (km)"
-                        type="number"
-                        value={formData.maxAltitude}
-                        onChange={handleChange('maxAltitude')}
-                        error={!!errors.maxAltitude}
-                        helperText={errors.maxAltitude}
-                        required
-                        fullWidth
-                        inputProps={{ step: 'any', min: 0 }}
-                        sx={{
-                            '& .MuiOutlinedInput-root': {
-                                color: '#ffffff',
-                                '& fieldset': { borderColor: '#4b5563' },
-                                '&:hover fieldset': { borderColor: '#6b7280' },
-                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
-                            },
-                            '& .MuiInputLabel-root': { color: '#9ca3af' },
-                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
-                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
-                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
-                        }}
-                    />
+                    <TextField label="Max Altitude (km)" type="number" value={formData.maxAltitude} onChange={handleChange('maxAltitude')} error={!!errors.maxAltitude} helperText={errors.maxAltitude} required fullWidth inputProps={{ step: 'any', min: 0 }} sx={{ '& .MuiOutlinedInput-root': { color: '#ffffff', '& fieldset': { borderColor: '#4b5563' }, '&:hover fieldset': { borderColor: '#6b7280' }, '&.Mui-focused fieldset': { borderColor: '#60a5fa' } }, '& .MuiInputLabel-root': { color: '#9ca3af' }, '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' }, '& .MuiFormHelperText-root': { color: '#9ca3af' }, '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' } }} />
 
-                    <TextField
-                        label="Model of Spacecraft"
-                        value={formData.modelOfSpaceCraft}
-                        onChange={handleChange('modelOfSpaceCraft')}
-                        error={!!errors.modelOfSpaceCraft}
-                        helperText={errors.modelOfSpaceCraft}
-                        required
-                        fullWidth
-                        sx={{
-                            '& .MuiOutlinedInput-root': {
-                                color: '#ffffff',
-                                '& fieldset': { borderColor: '#4b5563' },
-                                '&:hover fieldset': { borderColor: '#6b7280' },
-                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
-                            },
-                            '& .MuiInputLabel-root': { color: '#9ca3af' },
-                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
-                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
-                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
-                        }}
-                    />
+                    <TextField label="Model of Spacecraft" value={formData.modelOfSpaceCraft} onChange={handleChange('modelOfSpaceCraft')} error={!!errors.modelOfSpaceCraft} helperText={errors.modelOfSpaceCraft} required fullWidth sx={{ '& .MuiOutlinedInput-root': { color: '#ffffff', '& fieldset': { borderColor: '#4b5563' }, '&:hover fieldset': { borderColor: '#6b7280' }, '&.Mui-focused fieldset': { borderColor: '#60a5fa' } }, '& .MuiInputLabel-root': { color: '#9ca3af' }, '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' }, '& .MuiFormHelperText-root': { color: '#9ca3af' }, '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' } }} />
                 </Stack>
             </Box>
 
             <Divider sx={{ borderColor: '#374151' }} />
 
             <Box sx={{ p: 2, display: 'flex', gap: 2 }}>
-                <Button
-                    variant="outlined"
-                    onClick={handleReset}
-                    fullWidth
-                    sx={{
-                        color: '#9ca3af',
-                        borderColor: '#4b5563',
-                        '&:hover': {
-                            borderColor: '#6b7280',
-                            backgroundColor: '#1f2937'
-                        }
-                    }}
-                >
-                    Reset
-                </Button>
-                <Button
-                    variant="contained"
-                    onClick={handleSubmit}
-                    fullWidth
-                    sx={{
-                        backgroundColor: '#3b82f6',
-                        '&:hover': {
-                            backgroundColor: '#2563eb'
-                        }
-                    }}
-                >
-                    {initialData ? 'Update' : 'Register'}
-                </Button>
+                <Button variant="outlined" onClick={handleReset} fullWidth sx={{ color: '#9ca3af', borderColor: '#4b5563', '&:hover': { borderColor: '#6b7280', backgroundColor: '#1f2937' } }}>Reset</Button>
+                <Button variant="contained" onClick={handleSubmit} fullWidth sx={{ backgroundColor: '#3b82f6', '&:hover': { backgroundColor: '#2563eb' } }}>Register</Button>
             </Box>
         </Box>
     );
 }
-
-export default RegistrationSidePanel;

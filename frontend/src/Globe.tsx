@@ -18,6 +18,10 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 import RegistrationPanel, { RegistrationInformationType as BaseRegistrationInfo } from "./RegistrationPanel/RegistrationPanel";
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import { Stack } from '@mui/material';
+import {registerFlight} from './RegistrationPanel/client/flightRegistrationClient';
+import {Alert, Snackbar} from "@mui/material";
+import RegistrationSidePanel, {RegistrationInformationType} from "./RegistrationPanel/RegistrationPanel";
+
 
 // Simple token for demo purposes
 Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZTkyYmQ4MS0wM2MwLTQ0YzYtYTc0MS1kYjQwNjZjODRjOWUiLCJpZCI6MzQ3MjI0LCJpYXQiOjE3NTk2MDA2MTB9.wiksTWk3Mhnj7FRgME5pKyowzjZwDtYKSruNoxrDIHc";
@@ -36,6 +40,33 @@ export const Globe = () => {
     const [isPanelOpen, setIsPanelOpen] = useState(false);
     const [registeredFlights, setRegisteredFlights] = useState<ExtendedRegistrationInfo[]>([]);
     const [nextFlightId, setNextFlightId] = useState(1);
+
+
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
+
+    // const handleRegistrationSubmit = async (data: Omit<RegistrationInformationType, 'id'>) => {
+    //     try {
+    //         const registeredFlight = await registerFlight(data);
+    //         console.log('Flight registered successfully:', registeredFlight);
+    //         setSnackbarMessage('Flight successfully registered!');
+    //         setSnackbarSeverity('success');
+    //         setSnackbarOpen(true);
+    //         setIsPanelOpen(false);
+    //
+    //         setIsPanelOpen(false);
+    //     } catch (error) {
+    //         console.error('Error registering flight:', error);
+    //         setSnackbarMessage('Failed to register flight. Please try again.');
+    //         setSnackbarSeverity('error');
+    //         setSnackbarOpen(true);
+    //     }
+    // };
+
+    const handleSnackbarClose = () => {
+        setSnackbarOpen(false);
+    };
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -75,17 +106,17 @@ export const Globe = () => {
         const now = new Date();
         const positionAndVelocity = satellite.propagate(satrec, now);
         const gmst = satellite.gstime(now);
-        
+
         if (typeof positionAndVelocity.position === 'boolean') {
             throw new Error('Invalid satellite position');
         }
-        
+
         const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
 
         const lat = satellite.degreesLat(positionGd.latitude);
         const lon = satellite.degreesLong(positionGd.longitude);
         const altitude = positionGd.height * 1000;
-        return { lat, lon, altitude };
+        return {lat, lon, altitude};
     };
 
     const addISSToGlobe = (data: any, position: { lat: number; lon: number; altitude: number }) => {
@@ -143,11 +174,11 @@ export const Globe = () => {
 
         for (let i = 0; i < numPoints; i++) {
             const fraction = i / (numPoints - 1);
-            
+
             // Interpolate position
             const lat = startLat + (endLat - startLat) * fraction;
             const lon = startLon + (endLon - startLon) * fraction;
-            
+
             // Parabolic altitude profile
             const altitude = maxAltitudeMeters * Math.sin(fraction * Math.PI);
 
@@ -251,7 +282,14 @@ export const Globe = () => {
         return entities;
     };
 
-    const handleRegistrationSubmit = (data: Omit<BaseRegistrationInfo, 'id'>) => {
+    const handleRegistrationSubmit = async (data: Omit<BaseRegistrationInfo, 'id'>) => {
+        const registeredFlight = await registerFlight(data);
+        console.log('Flight registered successfully:', registeredFlight);
+        setSnackbarMessage('Flight successfully registered!');
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        setIsPanelOpen(false);
+
         const newFlight: ExtendedRegistrationInfo = {
             ...data,
             id: nextFlightId,
@@ -331,6 +369,20 @@ export const Globe = () => {
                     />
                 )}
             </div>
+            <Snackbar
+                open={snackbarOpen}
+                autoHideDuration={4000}
+                onClose={handleSnackbarClose}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert
+                    onClose={handleSnackbarClose}
+                    severity={snackbarSeverity}
+                    sx={{ width: '100%' }}
+                >
+                    {snackbarMessage}
+                </Alert>
+            </Snackbar>
 
             <div className="relative flex-1 h-full">
                 <div ref={containerRef} className="w-full h-full" />

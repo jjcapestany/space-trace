@@ -27,6 +27,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.4.1",
     "react-window": "^1.8.8",
+    "satellite.js": "^6.0.1",
     "tailwindcss": "^4.1.14",
     "typescript": "^4.9.4",
     "vite-plugin-cesium": "^1.2.23",

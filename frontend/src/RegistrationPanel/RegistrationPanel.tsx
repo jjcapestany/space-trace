@@ -16,7 +16,10 @@ export interface RegistrationInformationType {
     flightName: string;
     startingLatitude: number;
     startingLongitude: number;
+    endingLatitude: number;
+    endingLongitude: number;
     launchDateAndTime: Date;
+    landingDateAndTime: Date;
     maxAltitude: number;
     modelOfSpaceCraft: string;
 }
@@ -38,8 +41,13 @@ function RegistrationSidePanel({
         flightName: initialData?.flightName || '',
         startingLatitude: initialData?.startingLatitude?.toString() || '',
         startingLongitude: initialData?.startingLongitude?.toString() || '',
+        endingLatitude: initialData?.endingLatitude?.toString() || '',
+        endingLongitude: initialData?.endingLongitude?.toString() || '',
         launchDateAndTime: initialData?.launchDateAndTime
             ? new Date(initialData.launchDateAndTime).toISOString().slice(0, 16)
+            : '',
+        landingDateAndTime: initialData?.landingDateAndTime
+            ? new Date(initialData.landingDateAndTime).toISOString().slice(0, 16)
             : '',
         maxAltitude: initialData?.maxAltitude?.toString() || '',
         modelOfSpaceCraft: initialData?.modelOfSpaceCraft || '',
@@ -66,18 +74,40 @@ function RegistrationSidePanel({
             newErrors.flightName = 'Flight name is required';
         }
 
-        const lat = parseFloat(formData.startingLatitude);
-        if (isNaN(lat) || lat < -90 || lat > 90) {
+        const startLat = parseFloat(formData.startingLatitude);
+        if (isNaN(startLat) || startLat < -90 || startLat > 90) {
             newErrors.startingLatitude = 'Latitude must be between -90 and 90';
         }
 
-        const lng = parseFloat(formData.startingLongitude);
-        if (isNaN(lng) || lng < -180 || lng > 180) {
+        const startLng = parseFloat(formData.startingLongitude);
+        if (isNaN(startLng) || startLng < -180 || startLng > 180) {
             newErrors.startingLongitude = 'Longitude must be between -180 and 180';
+        }
+
+        const endLat = parseFloat(formData.endingLatitude);
+        if (isNaN(endLat) || endLat < -90 || endLat > 90) {
+            newErrors.endingLatitude = 'Latitude must be between -90 and 90';
+        }
+
+        const endLng = parseFloat(formData.endingLongitude);
+        if (isNaN(endLng) || endLng < -180 || endLng > 180) {
+            newErrors.endingLongitude = 'Longitude must be between -180 and 180';
         }
 
         if (!formData.launchDateAndTime) {
             newErrors.launchDateAndTime = 'Launch date and time is required';
+        }
+
+        if (!formData.landingDateAndTime) {
+            newErrors.landingDateAndTime = 'Landing date and time is required';
+        }
+
+        if (formData.launchDateAndTime && formData.landingDateAndTime) {
+            const launchDate = new Date(formData.launchDateAndTime);
+            const landingDate = new Date(formData.landingDateAndTime);
+            if (landingDate <= launchDate) {
+                newErrors.landingDateAndTime = 'Landing must be after launch';
+            }
         }
 
         const alt = parseFloat(formData.maxAltitude);
@@ -101,7 +131,10 @@ function RegistrationSidePanel({
                 flightName: formData.flightName,
                 startingLatitude: parseFloat(formData.startingLatitude),
                 startingLongitude: parseFloat(formData.startingLongitude),
+                endingLatitude: parseFloat(formData.endingLatitude),
+                endingLongitude: parseFloat(formData.endingLongitude),
                 launchDateAndTime: new Date(formData.launchDateAndTime),
+                landingDateAndTime: new Date(formData.landingDateAndTime),
                 maxAltitude: parseFloat(formData.maxAltitude),
                 modelOfSpaceCraft: formData.modelOfSpaceCraft,
             };
@@ -114,7 +147,10 @@ function RegistrationSidePanel({
             flightName: '',
             startingLatitude: '',
             startingLongitude: '',
+            endingLatitude: '',
+            endingLongitude: '',
             launchDateAndTime: '',
+            landingDateAndTime: '',
             maxAltitude: '',
             modelOfSpaceCraft: '',
         });
@@ -124,20 +160,35 @@ function RegistrationSidePanel({
     if (!open) return null;
 
     return (
-        <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'background.paper' }}>
-            <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box
+            sx={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                bgcolor: '#1a1a1a',
+                color: '#ffffff'
+            }}
+        >
+            <Box
+                sx={{
+                    p: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    borderBottom: '1px solid #333'
+                }}
+            >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <RocketLaunchIcon color="primary" />
-                    <Typography variant="h6">
+                    <RocketLaunchIcon sx={{ color: '#60a5fa' }} />
+                    <Typography variant="h6" sx={{ color: '#ffffff' }}>
                         {initialData ? 'Edit Flight Registration' : 'New Flight Registration'}
                     </Typography>
                 </Box>
-                <IconButton onClick={onClose} size="small">
+                <IconButton onClick={onClose} size="small" sx={{ color: '#9ca3af' }}>
                     <CloseIcon />
                 </IconButton>
             </Box>
-
-            <Divider />
 
             <Box
                 component="form"
@@ -153,7 +204,31 @@ function RegistrationSidePanel({
                         helperText={errors.flightName}
                         required
                         fullWidth
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                color: '#ffffff',
+                                '& fieldset': { borderColor: '#4b5563' },
+                                '&:hover fieldset': { borderColor: '#6b7280' },
+                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
+                            },
+                            '& .MuiInputLabel-root': { color: '#9ca3af' },
+                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
+                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
+                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
+                        }}
                     />
+
+                    <Divider
+                        textAlign="left"
+                        sx={{
+                            borderColor: '#374151',
+                            '&::before, &::after': { borderColor: '#374151' }
+                        }}
+                    >
+                        <Typography variant="caption" sx={{ color: '#9ca3af' }}>
+                            Launch Location
+                        </Typography>
+                    </Divider>
 
                     <TextField
                         label="Starting Latitude"
@@ -165,6 +240,18 @@ function RegistrationSidePanel({
                         required
                         fullWidth
                         inputProps={{ step: 'any' }}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                color: '#ffffff',
+                                '& fieldset': { borderColor: '#4b5563' },
+                                '&:hover fieldset': { borderColor: '#6b7280' },
+                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
+                            },
+                            '& .MuiInputLabel-root': { color: '#9ca3af' },
+                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
+                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
+                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
+                        }}
                     />
 
                     <TextField
@@ -177,7 +264,91 @@ function RegistrationSidePanel({
                         required
                         fullWidth
                         inputProps={{ step: 'any' }}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                color: '#ffffff',
+                                '& fieldset': { borderColor: '#4b5563' },
+                                '&:hover fieldset': { borderColor: '#6b7280' },
+                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
+                            },
+                            '& .MuiInputLabel-root': { color: '#9ca3af' },
+                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
+                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
+                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
+                        }}
                     />
+
+                    <Divider
+                        textAlign="left"
+                        sx={{
+                            borderColor: '#374151',
+                            '&::before, &::after': { borderColor: '#374151' }
+                        }}
+                    >
+                        <Typography variant="caption" sx={{ color: '#9ca3af' }}>
+                            Landing Location
+                        </Typography>
+                    </Divider>
+
+                    <TextField
+                        label="Ending Latitude"
+                        type="number"
+                        value={formData.endingLatitude}
+                        onChange={handleChange('endingLatitude')}
+                        error={!!errors.endingLatitude}
+                        helperText={errors.endingLatitude || 'Range: -90 to 90'}
+                        required
+                        fullWidth
+                        inputProps={{ step: 'any' }}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                color: '#ffffff',
+                                '& fieldset': { borderColor: '#4b5563' },
+                                '&:hover fieldset': { borderColor: '#6b7280' },
+                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
+                            },
+                            '& .MuiInputLabel-root': { color: '#9ca3af' },
+                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
+                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
+                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
+                        }}
+                    />
+
+                    <TextField
+                        label="Ending Longitude"
+                        type="number"
+                        value={formData.endingLongitude}
+                        onChange={handleChange('endingLongitude')}
+                        error={!!errors.endingLongitude}
+                        helperText={errors.endingLongitude || 'Range: -180 to 180'}
+                        required
+                        fullWidth
+                        inputProps={{ step: 'any' }}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                color: '#ffffff',
+                                '& fieldset': { borderColor: '#4b5563' },
+                                '&:hover fieldset': { borderColor: '#6b7280' },
+                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
+                            },
+                            '& .MuiInputLabel-root': { color: '#9ca3af' },
+                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
+                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
+                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
+                        }}
+                    />
+
+                    <Divider
+                        textAlign="left"
+                        sx={{
+                            borderColor: '#374151',
+                            '&::before, &::after': { borderColor: '#374151' }
+                        }}
+                    >
+                        <Typography variant="caption" sx={{ color: '#9ca3af' }}>
+                            Flight Details
+                        </Typography>
+                    </Divider>
 
                     <TextField
                         label="Launch Date and Time"
@@ -189,6 +360,42 @@ function RegistrationSidePanel({
                         required
                         fullWidth
                         InputLabelProps={{ shrink: true }}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                color: '#ffffff',
+                                '& fieldset': { borderColor: '#4b5563' },
+                                '&:hover fieldset': { borderColor: '#6b7280' },
+                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
+                            },
+                            '& .MuiInputLabel-root': { color: '#9ca3af' },
+                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
+                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
+                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
+                        }}
+                    />
+
+                    <TextField
+                        label="Landing Date and Time"
+                        type="datetime-local"
+                        value={formData.landingDateAndTime}
+                        onChange={handleChange('landingDateAndTime')}
+                        error={!!errors.landingDateAndTime}
+                        helperText={errors.landingDateAndTime}
+                        required
+                        fullWidth
+                        InputLabelProps={{ shrink: true }}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                color: '#ffffff',
+                                '& fieldset': { borderColor: '#4b5563' },
+                                '&:hover fieldset': { borderColor: '#6b7280' },
+                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
+                            },
+                            '& .MuiInputLabel-root': { color: '#9ca3af' },
+                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
+                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
+                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
+                        }}
                     />
 
                     <TextField
@@ -201,6 +408,18 @@ function RegistrationSidePanel({
                         required
                         fullWidth
                         inputProps={{ step: 'any', min: 0 }}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                color: '#ffffff',
+                                '& fieldset': { borderColor: '#4b5563' },
+                                '&:hover fieldset': { borderColor: '#6b7280' },
+                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
+                            },
+                            '& .MuiInputLabel-root': { color: '#9ca3af' },
+                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
+                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
+                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
+                        }}
                     />
 
                     <TextField
@@ -211,17 +430,37 @@ function RegistrationSidePanel({
                         helperText={errors.modelOfSpaceCraft}
                         required
                         fullWidth
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                color: '#ffffff',
+                                '& fieldset': { borderColor: '#4b5563' },
+                                '&:hover fieldset': { borderColor: '#6b7280' },
+                                '&.Mui-focused fieldset': { borderColor: '#60a5fa' },
+                            },
+                            '& .MuiInputLabel-root': { color: '#9ca3af' },
+                            '& .MuiInputLabel-root.Mui-focused': { color: '#60a5fa' },
+                            '& .MuiFormHelperText-root': { color: '#9ca3af' },
+                            '& .MuiFormHelperText-root.Mui-error': { color: '#ef4444' },
+                        }}
                     />
                 </Stack>
             </Box>
 
-            <Divider />
+            <Divider sx={{ borderColor: '#374151' }} />
 
             <Box sx={{ p: 2, display: 'flex', gap: 2 }}>
                 <Button
                     variant="outlined"
                     onClick={handleReset}
                     fullWidth
+                    sx={{
+                        color: '#9ca3af',
+                        borderColor: '#4b5563',
+                        '&:hover': {
+                            borderColor: '#6b7280',
+                            backgroundColor: '#1f2937'
+                        }
+                    }}
                 >
                     Reset
                 </Button>
@@ -229,6 +468,12 @@ function RegistrationSidePanel({
                     variant="contained"
                     onClick={handleSubmit}
                     fullWidth
+                    sx={{
+                        backgroundColor: '#3b82f6',
+                        '&:hover': {
+                            backgroundColor: '#2563eb'
+                        }
+                    }}
                 >
                     {initialData ? 'Update' : 'Register'}
                 </Button>

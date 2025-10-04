@@ -16,6 +16,8 @@ import {
 import * as satellite from "satellite.js";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import RegistrationPanel, { RegistrationInformationType as BaseRegistrationInfo } from "./RegistrationPanel/RegistrationPanel";
+import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
+import { Stack } from '@mui/material';
 
 // Simple token for demo purposes
 Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZTkyYmQ4MS0wM2MwLTQ0YzYtYTc0MS1kYjQwNjZjODRjOWUiLCJpZCI6MzQ3MjI0LCJpYXQiOjE3NTk2MDA2MTB9.wiksTWk3Mhnj7FRgME5pKyowzjZwDtYKSruNoxrDIHc";
@@ -303,12 +305,12 @@ export const Globe = () => {
         setRegisteredFlights(prev => prev.filter(f => f.id !== flightId));
     };
 
-    const trackISS = () => {
-        const viewer = viewerRef.current;
-        if (viewer && issEntityRef.current) {
-            viewer.trackedEntity = issEntityRef.current;
-        }
-    };
+    // const trackISS = () => {
+    //     const viewer = viewerRef.current;
+    //     if (viewer && issEntityRef.current) {
+    //         viewer.trackedEntity = issEntityRef.current;
+    //     }
+    // };
 
     const resetCamera = () => {
         const viewer = viewerRef.current;
@@ -334,7 +336,10 @@ export const Globe = () => {
                 <div ref={containerRef} className="w-full h-full" />
 
                 <div className="absolute top-4 left-4 bg-black bg-opacity-90 text-white p-6 rounded-lg max-w-sm z-40">
-                    <h3 className="text-2xl font-bold mb-4">🌍 Space Tracker</h3>
+                    <Stack direction={'row'} gap={1}>
+                        <RocketLaunchIcon sx={{ color: '#bf60faff' }} />
+                        <h3 className="text-2xl font-bold mb-4">Space Trace</h3>
+                    </Stack>
 
                     <div className="mb-4 pb-4 border-b border-gray-700">
                         <button
@@ -343,20 +348,6 @@ export const Globe = () => {
                         >
                             {isPanelOpen ? 'Close Registration' : '+ Register Flight'}
                         </button>
-                    </div>
-
-                    <div className="mb-4 pb-4 border-b border-gray-700">
-                        <h4 className="text-lg font-semibold mb-2 text-yellow-400">ISS Tracker</h4>
-                        {issLoaded ? (
-                            <div className="space-y-2">
-                                <div className="text-sm text-green-400">✓ ISS Loaded</div>
-                                <button onClick={trackISS} className="w-full bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded">
-                                    Track ISS
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="text-sm text-gray-400">Loading ISS...</div>
-                        )}
                     </div>
 
                     <div className="mb-4 pb-4 border-b border-gray-700">
@@ -376,13 +367,13 @@ export const Globe = () => {
                                                 onClick={() => toggleFlightVisibility(flight.id)}
                                                 className="flex-1 bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-xs flex items-center justify-center gap-1"
                                             >
-                                                {flight.visible ? '👁️ Hide' : '👁️ Show'}
+                                                {flight.visible ? 'Hide' : 'Show'}
                                             </button>
                                             <button
                                                 onClick={() => deleteFlight(flight.id)}
                                                 className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
                                             >
-                                                🗑️
+                                                -
                                             </button>
                                         </div>
                                     </div>
@@ -396,23 +387,6 @@ export const Globe = () => {
                         <button onClick={resetCamera} className="w-full bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">
                             Reset Camera
                         </button>
-                    </div>
-                </div>
-
-                <div className="absolute bottom-4 left-4 bg-black bg-opacity-90 text-white px-4 py-3 rounded text-xs z-40">
-                    <div className="space-y-1">
-                        <div className="flex items-center">
-                            <div className="w-3 h-3 rounded-full bg-yellow-400 mr-2" />
-                            <span>ISS (Orbital)</span>
-                        </div>
-                        <div className="flex items-center">
-                            <div className="w-3 h-3 rounded-full bg-red-500 mr-2" />
-                            <span>Launch Sites</span>
-                        </div>
-                        <div className="flex items-center">
-                            <div className="w-3 h-3 rounded-full bg-orange-500 mr-2" />
-                            <span>Landing Sites</span>
-                        </div>
                     </div>
                 </div>
             </div>

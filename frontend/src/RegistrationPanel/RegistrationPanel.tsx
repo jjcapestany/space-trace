@@ -1,18 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
     Ion,
-    Viewer,
-    Terrain,
-    Cartesian3,
-    Color,
-    LabelStyle,
-    VerticalOrigin,
-    Cartesian2,
     Math as CesiumMath,
-    createOsmBuildingsAsync,
-    PolylineGlowMaterialProperty
 } from "cesium";
-import * as satellite from "satellite.js";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import {
     Box,
@@ -25,9 +15,6 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
-import DeleteIcon from '@mui/icons-material/Delete';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 
 Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZTkyYmQ4MS0wM2MwLTQ0YzYtYTc0MS1kYjQwNjZjODRjOWUiLCJpZCI6MzQ3MjI0LCJpYXQiOjE3NTk2MDA2MTB9.wiksTWk3Mhnj7FRgME5pKyowzjZwDtYKSruNoxrDIHc";
 
@@ -180,7 +167,7 @@ export default function RegistrationSidePanel({
         <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#1a1a1a', color: '#ffffff' }}>
             <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #333' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <RocketLaunchIcon sx={{ color: '#60a5fa' }} />
+                    <RocketLaunchIcon sx={{ color: '#bf60faff' }} />
                     <Typography variant="h6" sx={{ color: '#ffffff' }}>New Flight Registration</Typography>
                 </Box>
                 <IconButton onClick={onClose} size="small" sx={{ color: '#9ca3af' }}>
@@ -241,7 +228,7 @@ export default function RegistrationSidePanel({
 
             <Box sx={{ p: 2, display: 'flex', gap: 2 }}>
                 <Button variant="outlined" onClick={handleReset} fullWidth sx={{ color: '#9ca3af', borderColor: '#4b5563', '&:hover': { borderColor: '#6b7280', backgroundColor: '#1f2937' } }}>Reset</Button>
-                <Button variant="contained" onClick={handleSubmit} fullWidth sx={{ backgroundColor: '#3b82f6', '&:hover': { backgroundColor: '#2563eb' } }}>Register</Button>
+                <Button variant="contained" onClick={handleSubmit} fullWidth sx={{ backgroundColor: '#bf60faff', '&:hover': { backgroundColor: '#2563eb' } }}>Register</Button>
             </Box>
         </Box>
     );

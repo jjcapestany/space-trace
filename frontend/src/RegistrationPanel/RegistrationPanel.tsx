@@ -470,10 +470,10 @@ export default function RegistrationSidePanel({
                         onClick={handleSubmit}
                         fullWidth
                         sx={{
-                            backgroundColor: '#bf60faff
-                            ', '&:hover': {
+                            backgroundColor: '#bf60faff',
+                            '&:hover': {
                                 backgroundColor: '#2563eb'
-                            } }}>Register
+                            }}}>Register
                     </Button>
                 </Box>
             </Box>

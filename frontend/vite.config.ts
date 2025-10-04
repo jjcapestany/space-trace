@@ -4,9 +4,11 @@
 import react from '@vitejs/plugin-react-swc';
 import viteTsconfigPaths from 'vite-tsconfig-paths';
 import svgrPlugin from 'vite-plugin-svgr';
+import cesium from 'vite-plugin-cesium'
+import tailwindcss from '@tailwindcss/vite'
 
 export default {
-  plugins: [react(), viteTsconfigPaths(), svgrPlugin()],
+  plugins: [react(), viteTsconfigPaths(), svgrPlugin(), cesium(), tailwindcss()],
   build: {
     outDir: 'build',
   },

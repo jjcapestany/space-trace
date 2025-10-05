@@ -18,18 +18,7 @@ import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 
 Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZTkyYmQ4MS0wM2MwLTQ0YzYtYTc0MS1kYjQwNjZjODRjOWUiLCJpZCI6MzQ3MjI0LCJpYXQiOjE3NTk2MDA2MTB9.wiksTWk3Mhnj7FRgME5pKyowzjZwDtYKSruNoxrDIHc";
 
-export interface RegistrationInformationType {
-    id: number;
-    flightName: string;
-    startingLatitude: number;
-    startingLongitude: number;
-    endingLatitude: number;
-    endingLongitude: number;
-    launchDateAndTime: Date;
-    landingDateAndTime: Date;
-    maxAltitude: number;
-    modelOfSpaceCraft: string;
-}
+
 
 interface RegisteredFlight extends RegistrationInformationType {
     visible: boolean;

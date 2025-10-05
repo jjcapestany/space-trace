@@ -15,9 +15,7 @@ import {
 } from "cesium";
 import * as satellite from "satellite.js";
 import "cesium/Build/Cesium/Widgets/widgets.css";
-import RegistrationPanel, {
-  RegistrationInformationType as BaseRegistrationInfo,
-} from "./RegistrationPanel/RegistrationPanel";
+import RegistrationPanel from "./RegistrationPanel/RegistrationPanel";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import DeleteIcon from "@mui/icons-material/Delete";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
@@ -37,46 +35,10 @@ import {
   DialogActions,
   Button,
 } from "@mui/material";
+import type { ExtendedRegistrationInfo, FlightConflict, SafetyReport, CollisionWarning, RegistrationInformationType  } from "./types/types";
 
 Ion.defaultAccessToken =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZTkyYmQ4MS0wM2MwLTQ0YzYtYTc0MS1kYjQwNjZjODRjOWUiLCJpZCI6MzQ3MjI0LCJpYXQiOjE3NTk2MDA2MTB9.wiksTWk3Mhnj7FRgME5pKyowzjZwDtYKSruNoxrDIHc";
-
-interface CollisionWarning {
-  satelliteName: string;
-  closestDistance: number;
-  timeOfClosestApproach: Date;
-  flightPosition: { lat: number; lon: number; altitude: number };
-  satellitePosition: { lat: number; lon: number; altitude: number };
-  severity: "safe" | "warning" | "danger" | "critical";
-}
-
-interface SafetyReport {
-  flightId: number;
-  flightName: string;
-  totalSatellitesChecked: number;
-  conflictsFound: number;
-  warnings: CollisionWarning[];
-  overallStatus: "safe" | "warning" | "danger";
-}
-
-// Extended interface for internal use with visibility and entities
-interface ExtendedRegistrationInfo extends BaseRegistrationInfo {
-  visible: boolean;
-  entities: Entity[];
-  safetyReport?: SafetyReport;
-  warningEntities?: Entity[];
-}
-
-interface FlightConflict {
-  flight1Id: number;
-  flight2Id: number;
-  conflictPoints: Array<{
-    lat: number;
-    lon: number;
-    altitude: number;
-    time: Date;
-  }>;
-}
 
 export const Globe = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -1001,7 +963,7 @@ export const Globe = () => {
   };
 
   const handleRegistrationSubmit = async (
-    data: Omit<BaseRegistrationInfo, "id">
+    data: Omit<RegistrationInformationType, "id">
   ) => {
     const registeredFlight = await registerFlight(data);
     setSnackbarMessage("Flight successfully registered!");

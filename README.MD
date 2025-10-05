@@ -30,6 +30,7 @@
 1. [Node](https://nodejs.org/en/download) Version 22.20.0
 2. [Yarn](https://classic.yarnpkg.com/lang/en/docs/install/#mac-stable) package manager
 3. Java 17 - Can be downloaded using [SDKMAN](https://sdkman.io/)
+4. Install [Docker](https://docs.docker.com/get-started/get-docker/)
 
 </details>
 <details>

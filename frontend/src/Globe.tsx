@@ -28,6 +28,8 @@ import { Alert, Snackbar } from "@mui/material";
 import WarningIcon from "@mui/icons-material/Warning";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
+import faviconImg from './assets/favicon.png';
+
 import {
   Stack,
   Dialog,
@@ -1201,10 +1203,17 @@ export const Globe = () => {
           <Stack
             direction={"row"}
             gap={1}
-            sx={{ backgroundColor: "black", p: 1, borderRadius: 2 }}
+            sx={{ backgroundColor: "black", p: 1, borderRadius: 2, alignItems: "center" }}
             className="mb-4"
           >
-            <RocketLaunchIcon sx={{ color: "#bf60faff" }} />
+              <img
+                  src={faviconImg}
+                  alt="Space Trace logo"
+                  style={{
+                      width: '24px',
+                      height: '24px',
+                  }}
+              />
             <h3 className="text-2xl font-bold">Space Trace</h3>
           </Stack>
           <div className="mb-4 pb-4 border-b border-gray-700">

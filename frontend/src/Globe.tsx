@@ -38,7 +38,6 @@ import {
   Button,
 } from "@mui/material";
 
-// Simple token for demo purposes
 Ion.defaultAccessToken =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZTkyYmQ4MS0wM2MwLTQ0YzYtYTc0MS1kYjQwNjZjODRjOWUiLCJpZCI6MzQ3MjI0LCJpYXQiOjE3NTk2MDA2MTB9.wiksTWk3Mhnj7FRgME5pKyowzjZwDtYKSruNoxrDIHc";
 
@@ -68,6 +67,17 @@ interface ExtendedRegistrationInfo extends BaseRegistrationInfo {
   warningEntities?: Entity[];
 }
 
+interface FlightConflict {
+  flight1Id: number;
+  flight2Id: number;
+  conflictPoints: Array<{
+    lat: number;
+    lon: number;
+    altitude: number;
+    time: Date;
+  }>;
+}
+
 export const Globe = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<Viewer | null>(null);
@@ -82,18 +92,17 @@ export const Globe = () => {
   const [registeredFlights, setRegisteredFlights] = useState<
     ExtendedRegistrationInfo[]
   >([]);
-  const [nextFlightId, setNextFlightId] = useState(1);
-
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState("");
-  const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">(
-    "success"
-  );
+  const [conflicts, setConflicts] = useState<FlightConflict[]>([]);
   const [selectedReport, setSelectedReport] = useState<SafetyReport | null>(
     null
   );
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [checkingFlightId, setCheckingFlightId] = useState<number | null>(null);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">(
+    "success"
+  );
 
   const applyLeoVisibility = (show: boolean) => {
     leoSatellitesRef.current.forEach(({ entity }) => {
@@ -106,6 +115,20 @@ export const Globe = () => {
     setSnackbarOpen(false);
   };
 
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case "critical":
+        return "#dc2626";
+      case "danger":
+        return "#ea580c";
+      case "warning":
+        return "#f59e0b";
+      default:
+        return "#10b981";
+    }
+  };
+
+  // Main viewer setup
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -129,7 +152,6 @@ export const Globe = () => {
     loadISS();
     loadLEOSatellites();
 
-    // Load registered flights from backend
     getRegisteredFlights()
       .then((flights) => {
         const extendedFlights: ExtendedRegistrationInfo[] = flights.map(
@@ -155,7 +177,6 @@ export const Globe = () => {
         setSnackbarOpen(true);
       });
 
-    // Animation loop for real-time satellite updates
     const animationInterval = setInterval(() => {
       if (cancelled) return;
       updateSatellitePositions();
@@ -172,7 +193,12 @@ export const Globe = () => {
     };
   }, []);
 
-  // COLLISION DETECTION FUNCTIONS
+  // Conflict detection
+  useEffect(() => {
+    const detectedConflicts = detectConflicts(registeredFlights);
+    setConflicts(detectedConflicts);
+    visualizeConflicts(detectedConflicts);
+  }, [registeredFlights]);
 
   const calculate3DDistance = (
     pos1: { lat: number; lon: number; altitude: number },
@@ -246,7 +272,9 @@ export const Globe = () => {
         ) {
           proximateSatellites.push({ satrec, name });
         }
-      } catch (e) {}
+      } catch (e) {
+        // Ignore errors for individual satellites
+      }
     });
 
     return proximateSatellites;
@@ -315,13 +343,10 @@ export const Globe = () => {
             closestDistance = distance;
 
             let severity: "safe" | "warning" | "danger" | "critical";
-
             if (distance < 1) severity = "critical";
             else if (distance < 5) severity = "danger";
-            else if (distance < 100) {
-              console.log(distance);
-              severity = "warning";
-            } else severity = "safe";
+            else if (distance < 100) severity = "warning";
+            else severity = "safe";
 
             closestApproach = {
               satelliteName: name,
@@ -367,40 +392,6 @@ export const Globe = () => {
     };
   };
 
-  const handleCheckSafety = (flightId: number) => {
-    const flight = registeredFlights.find((f) => f.id === flightId);
-    if (!flight) return;
-
-    setCheckingFlightId(flightId);
-
-    setTimeout(() => {
-      const report = analyzeFlightSafety(flight);
-
-      // Remove old warning entities if they exist
-      if (flight.warningEntities) {
-        flight.warningEntities.forEach((entity) => {
-          viewerRef.current?.entities.remove(entity);
-        });
-      }
-
-      // Create new warning visualizations
-      const warningEntities = visualizeCollisionWarnings(flight, report);
-
-      // Update flight with safety report and warning entities
-      setRegisteredFlights((prev) =>
-        prev.map((f) =>
-          f.id === flightId
-            ? { ...f, safetyReport: report, warningEntities }
-            : f
-        )
-      );
-
-      setSelectedReport(report);
-      setReportDialogOpen(true);
-      setCheckingFlightId(null);
-    }, 100);
-  };
-
   const visualizeCollisionWarnings = (
     flight: ExtendedRegistrationInfo,
     report: SafetyReport
@@ -411,7 +402,6 @@ export const Globe = () => {
     const warningEntities: Entity[] = [];
 
     report.warnings.forEach((warning) => {
-      // Determine color based on severity
       let markerColor: Color;
       switch (warning.severity) {
         case "critical":
@@ -427,7 +417,6 @@ export const Globe = () => {
           markerColor = Color.GREEN;
       }
 
-      // Add marker at the collision point
       const entity = viewer.entities.add({
         name: `Collision Warning - ${warning.satelliteName}`,
         position: Cartesian3.fromDegrees(
@@ -460,7 +449,38 @@ export const Globe = () => {
     return warningEntities;
   };
 
-  // ISS LOGIC
+  const handleCheckSafety = (flightId: number) => {
+    const flight = registeredFlights.find((f) => f.id === flightId);
+    if (!flight) return;
+
+    setCheckingFlightId(flightId);
+
+    setTimeout(() => {
+      const report = analyzeFlightSafety(flight);
+
+      if (flight.warningEntities) {
+        flight.warningEntities.forEach((entity) => {
+          viewerRef.current?.entities.remove(entity);
+        });
+      }
+
+      const warningEntities = visualizeCollisionWarnings(flight, report);
+
+      setRegisteredFlights((prev) =>
+        prev.map((f) =>
+          f.id === flightId
+            ? { ...f, safetyReport: report, warningEntities }
+            : f
+        )
+      );
+
+      setSelectedReport(report);
+      setReportDialogOpen(true);
+      setCheckingFlightId(null);
+    }, 100);
+  };
+
+  // SATELLITE POSITION FUNCTIONS
   const calculatePositionFromSatrec = (satrec: any) => {
     const now = new Date();
     const positionAndVelocity = satellite.propagate(satrec, now);
@@ -487,7 +507,6 @@ export const Globe = () => {
   };
 
   const updateSatellitePositions = () => {
-    // Update ISS
     if (issEntityRef.current) {
       const issEntity = issEntityRef.current as any;
       if (issEntity.satrec) {
@@ -552,7 +571,6 @@ export const Globe = () => {
       },
     }) as any;
 
-    // Store satrec for real-time updates
     issEntity.satrec = satrec;
     issEntityRef.current = issEntity;
     setIssLoaded(true);
@@ -579,29 +597,17 @@ export const Globe = () => {
       if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
       const data = await response.json();
 
-      console.log("Total satellites:", data.length);
-
-      // Filter for LEO satellites using mean motion from TLE
       const leoSatellites = data.filter((sat: any) => {
         if (!sat.tle2) return false;
 
         try {
-          // Mean motion is in columns 52-63 of TLE line 2 (revolutions per day)
           const meanMotion = parseFloat(sat.tle2.substring(52, 63).trim());
-
-          // LEO satellites typically have mean motion > 11 revolutions/day
-          // Higher mean motion = lower, faster orbit
           return !isNaN(meanMotion) && meanMotion > 11;
         } catch (e) {
           return false;
         }
       });
 
-      console.log(
-        `Found ${leoSatellites.length} LEO satellites out of ${data.length} total`
-      );
-
-      // Add each LEO satellite to the globe
       leoSatellites.forEach((sat: any) => {
         try {
           if (!sat.tle1 || !sat.tle2) return;
@@ -624,7 +630,6 @@ export const Globe = () => {
             },
           });
 
-          // Store the entity and satrec for updates
           entity.show = leoVisible;
 
           leoSatellitesRef.current.push({
@@ -633,17 +638,14 @@ export const Globe = () => {
             name: sat.name || "Unknown",
           });
         } catch (e) {
-          // Skip satellites that can't be positioned
           console.debug("Could not position satellite:", sat.name);
         }
       });
 
       setLeoCount(leoSatellitesRef.current.length);
-
       console.log(
         `Added ${leoSatellitesRef.current.length} LEO satellites to the globe`
       );
-      return leoSatellites;
     } catch (e) {
       console.error("Error loading sats:", e);
     }
@@ -664,18 +666,216 @@ export const Globe = () => {
 
     for (let i = 0; i < numPoints; i++) {
       const fraction = i / (numPoints - 1);
-
-      // Interpolate position
       const lat = startLat + (endLat - startLat) * fraction;
       const lon = startLon + (endLon - startLon) * fraction;
-
-      // Parabolic altitude profile
       const altitude = maxAltitudeMeters * Math.sin(fraction * Math.PI);
 
       points.push({ lat, lon, altitude });
     }
 
     return points;
+  };
+
+  const calculateTrajectoryPointsWithTime = (
+    startLat: number,
+    startLon: number,
+    endLat: number,
+    endLon: number,
+    maxAltitudeKm: number,
+    launchTime: Date,
+    landingTime: Date,
+    numPoints = 200
+  ): Array<{ lat: number; lon: number; altitude: number; time: Date }> => {
+    const points: Array<{
+      lat: number;
+      lon: number;
+      altitude: number;
+      time: Date;
+    }> = [];
+    const totalDurationMs = landingTime.getTime() - launchTime.getTime();
+    const maxAltitudeMeters = maxAltitudeKm * 1000;
+
+    for (let i = 0; i < numPoints; i++) {
+      const fraction = i / (numPoints - 1);
+      const currentTime = new Date(
+        launchTime.getTime() + fraction * totalDurationMs
+      );
+
+      const lat = startLat + (endLat - startLat) * fraction;
+      const lon = startLon + (endLon - startLon) * fraction;
+      const altitude = maxAltitudeMeters * Math.sin(fraction * Math.PI);
+
+      points.push({ lat, lon, altitude, time: currentTime });
+    }
+
+    return points;
+  };
+
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    alt1: number,
+    lat2: number,
+    lon2: number,
+    alt2: number
+  ): number => {
+    const R = 6371;
+
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const horizontalDistance = R * c;
+
+    const verticalDistance = Math.abs(alt1 - alt2) / 1000;
+
+    return Math.sqrt(
+      horizontalDistance * horizontalDistance +
+        verticalDistance * verticalDistance
+    );
+  };
+
+  const findConflictPoints = (
+    flight1: ExtendedRegistrationInfo,
+    flight2: ExtendedRegistrationInfo,
+    safeDistanceKm: number,
+    timeToleranceSeconds: number
+  ): Array<{ lat: number; lon: number; altitude: number; time: Date }> => {
+    const conflictPoints: Array<{
+      lat: number;
+      lon: number;
+      altitude: number;
+      time: Date;
+    }> = [];
+
+    const trajectory1 = calculateTrajectoryPointsWithTime(
+      flight1.startingLatitude,
+      flight1.startingLongitude,
+      flight1.endingLatitude,
+      flight1.endingLongitude,
+      flight1.maxAltitude,
+      flight1.launchDateAndTime,
+      flight1.landingDateAndTime,
+      100
+    );
+
+    const trajectory2 = calculateTrajectoryPointsWithTime(
+      flight2.startingLatitude,
+      flight2.startingLongitude,
+      flight2.endingLatitude,
+      flight2.endingLongitude,
+      flight2.maxAltitude,
+      flight2.launchDateAndTime,
+      flight2.landingDateAndTime,
+      100
+    );
+
+    for (const pos1 of trajectory1) {
+      for (const pos2 of trajectory2) {
+        const timeDiff =
+          Math.abs(pos1.time.getTime() - pos2.time.getTime()) / 1000;
+        if (timeDiff > timeToleranceSeconds) continue;
+
+        const distance = calculateDistance(
+          pos1.lat,
+          pos1.lon,
+          pos1.altitude,
+          pos2.lat,
+          pos2.lon,
+          pos2.altitude
+        );
+
+        if (distance < safeDistanceKm) {
+          conflictPoints.push({
+            lat: (pos1.lat + pos2.lat) / 2,
+            lon: (pos1.lon + pos2.lon) / 2,
+            altitude: (pos1.altitude + pos2.altitude) / 2,
+            time: pos1.time,
+          });
+          break;
+        }
+      }
+    }
+
+    return conflictPoints;
+  };
+
+  const detectConflicts = (
+    flights: ExtendedRegistrationInfo[]
+  ): FlightConflict[] => {
+    const SAFE_DISTANCE_KM = 10;
+    const TIME_TOLERANCE_SECONDS = 60;
+    const conflicts: FlightConflict[] = [];
+
+    const visibleFlights = flights.filter((f) => f.visible);
+
+    for (let i = 0; i < visibleFlights.length; i++) {
+      for (let j = i + 1; j < visibleFlights.length; j++) {
+        const flight1 = visibleFlights[i];
+        const flight2 = visibleFlights[j];
+
+        const conflictPoints = findConflictPoints(
+          flight1,
+          flight2,
+          SAFE_DISTANCE_KM,
+          TIME_TOLERANCE_SECONDS
+        );
+
+        if (conflictPoints.length > 0) {
+          conflicts.push({
+            flight1Id: flight1.id,
+            flight2Id: flight2.id,
+            conflictPoints,
+          });
+        }
+      }
+    }
+
+    return conflicts;
+  };
+
+  const visualizeConflicts = (conflicts: FlightConflict[]) => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+
+    const existingConflicts = viewer.entities.values.filter(
+      (e) => e.name && e.name.includes("CONFLICT")
+    );
+    existingConflicts.forEach((e) => viewer.entities.remove(e));
+
+    conflicts.forEach((conflict, idx) => {
+      conflict.conflictPoints.forEach((point, pointIdx) => {
+        viewer.entities.add({
+          name: `CONFLICT-${idx}-${pointIdx}`,
+          position: Cartesian3.fromDegrees(
+            point.lon,
+            point.lat,
+            point.altitude
+          ),
+          point: {
+            pixelSize: 20,
+            color: Color.RED.withAlpha(0.8),
+            outlineColor: Color.YELLOW,
+            outlineWidth: 3,
+          },
+          label: {
+            text: "⚠️ CONFLICT",
+            font: "14px sans-serif",
+            fillColor: Color.RED,
+            outlineColor: Color.WHITE,
+            outlineWidth: 2,
+            style: LabelStyle.FILL_AND_OUTLINE,
+            verticalOrigin: VerticalOrigin.BOTTOM,
+            pixelOffset: new Cartesian2(0, -25),
+          },
+        });
+      });
+    });
   };
 
   const createFlightPathForRegistration = (
@@ -702,7 +902,6 @@ export const Globe = () => {
       Cartesian3.fromDegrees(p.lon, p.lat, p.altitude)
     );
 
-    // Flight path line
     const colors = [
       Color.CYAN,
       Color.MAGENTA,
@@ -726,7 +925,6 @@ export const Globe = () => {
     });
     entities.push(path);
 
-    // Launch marker
     const launchEntity = viewer.entities.add({
       name: `${flight.flightName} - Launch`,
       position: Cartesian3.fromDegrees(
@@ -753,7 +951,6 @@ export const Globe = () => {
     });
     entities.push(launchEntity);
 
-    // Apogee marker
     const apogee = trajectory[Math.floor(trajectory.length / 2)];
     const apogeeEntity = viewer.entities.add({
       name: `${flight.flightName} - Apogee`,
@@ -777,7 +974,6 @@ export const Globe = () => {
     });
     entities.push(apogeeEntity);
 
-    // Landing marker
     const landing = trajectory[trajectory.length - 1];
     const landingEntity = viewer.entities.add({
       name: `${flight.flightName} - Landing`,
@@ -808,7 +1004,6 @@ export const Globe = () => {
     data: Omit<BaseRegistrationInfo, "id">
   ) => {
     const registeredFlight = await registerFlight(data);
-    console.log("Flight registered successfully:", registeredFlight);
     setSnackbarMessage("Flight successfully registered!");
     setSnackbarSeverity("success");
     setSnackbarOpen(true);
@@ -827,7 +1022,6 @@ export const Globe = () => {
 
     setRegisteredFlights((prev) => [...prev, newFlight]);
 
-    // Fly camera to view the new flight
     if (viewerRef.current) {
       const midLat = (data.startingLatitude + data.endingLatitude) / 2;
       const midLon = (data.startingLongitude + data.endingLongitude) / 2;
@@ -853,6 +1047,12 @@ export const Globe = () => {
           flight.entities.forEach((entity) => {
             entity.show = newVisible;
           });
+          // Also toggle warning entities
+          if (flight.warningEntities) {
+            flight.warningEntities.forEach((entity) => {
+              entity.show = newVisible;
+            });
+          }
           return { ...flight, visible: newVisible };
         }
         return flight;
@@ -867,6 +1067,12 @@ export const Globe = () => {
     const flight = registeredFlights.find((f) => f.id === flightId);
     if (flight) {
       flight.entities.forEach((entity) => viewer.entities.remove(entity));
+      // Also remove warning entities
+      if (flight.warningEntities) {
+        flight.warningEntities.forEach((entity) =>
+          viewer.entities.remove(entity)
+        );
+      }
     }
 
     setRegisteredFlights((prev) => prev.filter((f) => f.id !== flightId));
@@ -877,19 +1083,6 @@ export const Globe = () => {
     if (viewer) {
       viewer.trackedEntity = undefined;
       viewer.camera.flyHome(1);
-    }
-  };
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case "critical":
-        return "#dc2626";
-      case "danger":
-        return "#ea580c";
-      case "warning":
-        return "#f59e0b";
-      default:
-        return "#10b981";
     }
   };
 
@@ -934,7 +1127,6 @@ export const Globe = () => {
             <RocketLaunchIcon sx={{ color: "#bf60faff" }} />
             <h3 className="text-2xl font-bold">Space Trace</h3>
           </Stack>
-
           <div className="mb-4 pb-4 border-b border-gray-700">
             <button
               onClick={() => setIsPanelOpen(!isPanelOpen)}
@@ -943,7 +1135,36 @@ export const Globe = () => {
               {isPanelOpen ? "Close Registration" : "+ Register Flight"}
             </button>
           </div>
-
+          {conflicts.length > 0 && (
+            <div className="mb-4 pb-4 border-b border-gray-700">
+              <h4 className="text-lg font-semibold mb-2 text-red-400">
+                ⚠️ Conflicts Detected ({conflicts.length})
+              </h4>
+              <div className="max-h-48 overflow-y-auto space-y-2">
+                {conflicts.map((conflict, idx) => {
+                  const flight1 = registeredFlights.find(
+                    (f) => f.id === conflict.flight1Id
+                  );
+                  const flight2 = registeredFlights.find(
+                    (f) => f.id === conflict.flight2Id
+                  );
+                  return (
+                    <div
+                      key={idx}
+                      className="bg-red-900 bg-opacity-30 p-2 rounded text-sm border border-red-500"
+                    >
+                      <div className="font-semibold text-red-300">
+                        {flight1?.flightName} ↔ {flight2?.flightName}
+                      </div>
+                      <div className="text-xs text-red-400">
+                        {conflict.conflictPoints.length} conflict point(s)
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="mb-4 pb-4 border-b border-gray-700">
             <h4 className="text-lg font-semibold mb-2 text-white">
               Registered Flights ({registeredFlights.length})
@@ -1006,7 +1227,7 @@ export const Globe = () => {
               )}
             </div>
           </div>
-          <div className="mb-4 pb-4 border-b border-gray-700">
+          <div className="mb-4 pb-4 border-gray-700">
             <h4 className="text-lg font-semibold mb-2 text-white">
               LEO Satellites {leoCount ? `(${leoCount})` : ""}
             </h4>
@@ -1021,18 +1242,6 @@ export const Globe = () => {
                 </span>
               </button>
             </div>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-semibold mb-2 text-white-400">
-              Camera
-            </h4>
-            <button
-              onClick={resetCamera}
-              className="w-full bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded"
-            >
-              Reset Camera
-            </button>
           </div>
         </div>
       </div>

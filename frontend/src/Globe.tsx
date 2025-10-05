@@ -22,25 +22,59 @@ import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import DeleteIcon from "@mui/icons-material/Delete";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import { Stack } from "@mui/material";
-import { getRegisteredFlights, registerFlight } from "./RegistrationPanel/client/flightRegistrationClient";
+import {
+  getRegisteredFlights,
+  registerFlight,
+} from "./RegistrationPanel/client/flightRegistrationClient";
 import { Alert, Snackbar } from "@mui/material";
+import WarningIcon from "@mui/icons-material/Warning";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import {
+  Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+} from "@mui/material";
 
 // Simple token for demo purposes
 Ion.defaultAccessToken =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZTkyYmQ4MS0wM2MwLTQ0YzYtYTc0MS1kYjQwNjZjODRjOWUiLCJpZCI6MzQ3MjI0LCJpYXQiOjE3NTk2MDA2MTB9.wiksTWk3Mhnj7FRgME5pKyowzjZwDtYKSruNoxrDIHc";
 
+interface CollisionWarning {
+  satelliteName: string;
+  closestDistance: number;
+  timeOfClosestApproach: Date;
+  flightPosition: { lat: number; lon: number; altitude: number };
+  satellitePosition: { lat: number; lon: number; altitude: number };
+  severity: "safe" | "warning" | "danger" | "critical";
+}
+
+interface SafetyReport {
+  flightId: number;
+  flightName: string;
+  totalSatellitesChecked: number;
+  conflictsFound: number;
+  warnings: CollisionWarning[];
+  overallStatus: "safe" | "warning" | "danger";
+}
+
 // Extended interface for internal use with visibility and entities
 interface ExtendedRegistrationInfo extends BaseRegistrationInfo {
   visible: boolean;
   entities: Entity[];
+  safetyReport?: SafetyReport;
+  warningEntities?: Entity[];
 }
 
 export const Globe = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const issEntityRef = useRef<Entity | null>(null);
-  const leoSatellitesRef = useRef<Array<{ entity: Entity; satrec: any }>>([]);
+  const leoSatellitesRef = useRef<
+    Array<{ entity: Entity; satrec: any; name: string }>
+  >([]);
   const [leoVisible, setLeoVisible] = useState(true);
   const [leoCount, setLeoCount] = useState(0);
   const [issLoaded, setIssLoaded] = useState(false);
@@ -55,13 +89,18 @@ export const Globe = () => {
   const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">(
     "success"
   );
+  const [selectedReport, setSelectedReport] = useState<SafetyReport | null>(
+    null
+  );
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [checkingFlightId, setCheckingFlightId] = useState<number | null>(null);
 
   const applyLeoVisibility = (show: boolean) => {
-  leoSatellitesRef.current.forEach(({ entity }) => {
-    entity.show = show;
-  });
-  setLeoVisible(show);
-};
+    leoSatellitesRef.current.forEach(({ entity }) => {
+      entity.show = show;
+    });
+    setLeoVisible(show);
+  };
 
   const handleSnackbarClose = () => {
     setSnackbarOpen(false);
@@ -91,32 +130,36 @@ export const Globe = () => {
     loadLEOSatellites();
 
     // Load registered flights from backend
-    getRegisteredFlights().then((flights) => {
-      const extendedFlights: ExtendedRegistrationInfo[] = flights.map(flight => {
-        const extended: ExtendedRegistrationInfo = {
-          ...flight,
-          launchDateAndTime: new Date(flight.launchDateAndTime),
-          landingDateAndTime: new Date(flight.landingDateAndTime),
-          visible: true,
-          entities: []
-        };
+    getRegisteredFlights()
+      .then((flights) => {
+        const extendedFlights: ExtendedRegistrationInfo[] = flights.map(
+          (flight) => {
+            const extended: ExtendedRegistrationInfo = {
+              ...flight,
+              launchDateAndTime: new Date(flight.launchDateAndTime),
+              landingDateAndTime: new Date(flight.landingDateAndTime),
+              visible: true,
+              entities: [],
+            };
 
-        extended.entities = createFlightPathForRegistration(extended);
-        return extended;
+            extended.entities = createFlightPathForRegistration(extended);
+            return extended;
+          }
+        );
+        setRegisteredFlights(extendedFlights);
+      })
+      .catch((error) => {
+        console.error("Error loading registered flights:", error);
+        setSnackbarMessage("Failed to load registered flights");
+        setSnackbarSeverity("error");
+        setSnackbarOpen(true);
       });
-      setRegisteredFlights(extendedFlights);
-    }).catch((error) => {
-      console.error('Error loading registered flights:', error);
-      setSnackbarMessage('Failed to load registered flights');
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
-    });
 
     // Animation loop for real-time satellite updates
     const animationInterval = setInterval(() => {
       if (cancelled) return;
       updateSatellitePositions();
-    }, 10000); 
+    }, 10000);
 
     return () => {
       cancelled = true;
@@ -129,17 +172,308 @@ export const Globe = () => {
     };
   }, []);
 
+  // COLLISION DETECTION FUNCTIONS
+
+  const calculate3DDistance = (
+    pos1: { lat: number; lon: number; altitude: number },
+    pos2: { lat: number; lon: number; altitude: number }
+  ): number => {
+    const R = 6371;
+
+    const lat1Rad = CesiumMath.toRadians(pos1.lat);
+    const lat2Rad = CesiumMath.toRadians(pos2.lat);
+    const dLat = CesiumMath.toRadians(pos2.lat - pos1.lat);
+    const dLon = CesiumMath.toRadians(pos2.lon - pos1.lon);
+
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1Rad) *
+        Math.cos(lat2Rad) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const horizontalDist = R * c;
+
+    const altDiff = (pos2.altitude - pos1.altitude) / 1000;
+
+    return Math.sqrt(horizontalDist * horizontalDist + altDiff * altDiff);
+  };
+
+  const getFlightBoundingBox = (flight: ExtendedRegistrationInfo) => {
+    const buffer = 200;
+
+    const minLat = Math.min(flight.startingLatitude, flight.endingLatitude) - 2;
+    const maxLat = Math.max(flight.startingLatitude, flight.endingLatitude) + 2;
+    const minLon =
+      Math.min(flight.startingLongitude, flight.endingLongitude) - 2;
+    const maxLon =
+      Math.max(flight.startingLongitude, flight.endingLongitude) + 2;
+    const minAlt = 0;
+    const maxAlt = flight.maxAltitude * 1000 + buffer * 1000;
+
+    return { minLat, maxLat, minLon, maxLon, minAlt, maxAlt };
+  };
+
+  const filterSatellitesInProximity = (
+    flight: ExtendedRegistrationInfo,
+    launchTime: Date
+  ): Array<{ satrec: any; name: string }> => {
+    const bbox = getFlightBoundingBox(flight);
+    const proximateSatellites: Array<{ satrec: any; name: string }> = [];
+
+    leoSatellitesRef.current.forEach(({ satrec, name }) => {
+      try {
+        const positionAndVelocity = satellite.propagate(satrec, launchTime);
+        const gmst = satellite.gstime(launchTime);
+
+        if (typeof positionAndVelocity.position === "boolean") return;
+
+        const positionGd = satellite.eciToGeodetic(
+          positionAndVelocity.position,
+          gmst
+        );
+        const lat = satellite.degreesLat(positionGd.latitude);
+        const lon = satellite.degreesLong(positionGd.longitude);
+        const altitude = positionGd.height * 1000;
+
+        if (
+          lat >= bbox.minLat &&
+          lat <= bbox.maxLat &&
+          lon >= bbox.minLon &&
+          lon <= bbox.maxLon &&
+          altitude >= bbox.minAlt &&
+          altitude <= bbox.maxAlt
+        ) {
+          proximateSatellites.push({ satrec, name });
+        }
+      } catch (e) {}
+    });
+
+    return proximateSatellites;
+  };
+
+  const calculatePositionAtTime = (satrec: any, time: Date) => {
+    const positionAndVelocity = satellite.propagate(satrec, time);
+    const gmst = satellite.gstime(time);
+
+    if (typeof positionAndVelocity.position === "boolean") {
+      throw new Error("Invalid satellite position");
+    }
+
+    const positionGd = satellite.eciToGeodetic(
+      positionAndVelocity.position,
+      gmst
+    );
+
+    return {
+      lat: satellite.degreesLat(positionGd.latitude),
+      lon: satellite.degreesLong(positionGd.longitude),
+      altitude: positionGd.height * 1000,
+    };
+  };
+
+  const analyzeFlightSafety = (
+    flight: ExtendedRegistrationInfo
+  ): SafetyReport => {
+    const warnings: CollisionWarning[] = [];
+    const launchTime = flight.launchDateAndTime;
+    const landingTime = flight.landingDateAndTime;
+    const durationSeconds =
+      (landingTime.getTime() - launchTime.getTime()) / 1000;
+
+    const numSamples = 100;
+    const trajectory = calculateTrajectoryPoints(
+      flight.startingLatitude,
+      flight.startingLongitude,
+      flight.endingLatitude,
+      flight.endingLongitude,
+      flight.maxAltitude,
+      durationSeconds,
+      numSamples
+    );
+
+    const proximateSatellites = filterSatellitesInProximity(flight, launchTime);
+    console.log(
+      `Checking ${proximateSatellites.length} satellites for flight ${flight.flightName}`
+    );
+
+    proximateSatellites.forEach(({ satrec, name }) => {
+      let closestDistance = Infinity;
+      let closestApproach: CollisionWarning | null = null;
+
+      trajectory.forEach((flightPoint, index) => {
+        const fraction = index / (numSamples - 1);
+        const timeAtPoint = new Date(
+          launchTime.getTime() + durationSeconds * fraction * 1000
+        );
+
+        try {
+          const satPosition = calculatePositionAtTime(satrec, timeAtPoint);
+          const distance = calculate3DDistance(flightPoint, satPosition);
+
+          if (distance < closestDistance) {
+            closestDistance = distance;
+
+            let severity: "safe" | "warning" | "danger" | "critical";
+
+            if (distance < 1) severity = "critical";
+            else if (distance < 5) severity = "danger";
+            else if (distance < 100) {
+              console.log(distance);
+              severity = "warning";
+            } else severity = "safe";
+
+            closestApproach = {
+              satelliteName: name,
+              closestDistance: distance,
+              timeOfClosestApproach: timeAtPoint,
+              flightPosition: flightPoint,
+              satellitePosition: satPosition,
+              severity,
+            };
+          }
+        } catch (e) {}
+      });
+
+      if (closestApproach && closestDistance < 100) {
+        warnings.push(closestApproach);
+      }
+    });
+
+    warnings.sort((a, b) => {
+      const severityOrder = { critical: 0, danger: 1, warning: 2, safe: 3 };
+      if (severityOrder[a.severity] !== severityOrder[b.severity]) {
+        return severityOrder[a.severity] - severityOrder[b.severity];
+      }
+      return a.closestDistance - b.closestDistance;
+    });
+
+    let overallStatus: "safe" | "warning" | "danger" = "safe";
+    if (
+      warnings.some((w) => w.severity === "critical" || w.severity === "danger")
+    ) {
+      overallStatus = "danger";
+    } else if (warnings.some((w) => w.severity === "warning")) {
+      overallStatus = "warning";
+    }
+
+    return {
+      flightId: flight.id,
+      flightName: flight.flightName,
+      totalSatellitesChecked: proximateSatellites.length,
+      conflictsFound: warnings.length,
+      warnings: warnings.slice(0, 20),
+      overallStatus,
+    };
+  };
+
+  const handleCheckSafety = (flightId: number) => {
+    const flight = registeredFlights.find((f) => f.id === flightId);
+    if (!flight) return;
+
+    setCheckingFlightId(flightId);
+
+    setTimeout(() => {
+      const report = analyzeFlightSafety(flight);
+
+      // Remove old warning entities if they exist
+      if (flight.warningEntities) {
+        flight.warningEntities.forEach((entity) => {
+          viewerRef.current?.entities.remove(entity);
+        });
+      }
+
+      // Create new warning visualizations
+      const warningEntities = visualizeCollisionWarnings(flight, report);
+
+      // Update flight with safety report and warning entities
+      setRegisteredFlights((prev) =>
+        prev.map((f) =>
+          f.id === flightId
+            ? { ...f, safetyReport: report, warningEntities }
+            : f
+        )
+      );
+
+      setSelectedReport(report);
+      setReportDialogOpen(true);
+      setCheckingFlightId(null);
+    }, 100);
+  };
+
+  const visualizeCollisionWarnings = (
+    flight: ExtendedRegistrationInfo,
+    report: SafetyReport
+  ) => {
+    const viewer = viewerRef.current;
+    if (!viewer) return [];
+
+    const warningEntities: Entity[] = [];
+
+    report.warnings.forEach((warning) => {
+      // Determine color based on severity
+      let markerColor: Color;
+      switch (warning.severity) {
+        case "critical":
+          markerColor = Color.RED;
+          break;
+        case "danger":
+          markerColor = Color.ORANGE;
+          break;
+        case "warning":
+          markerColor = Color.YELLOW;
+          break;
+        default:
+          markerColor = Color.GREEN;
+      }
+
+      // Add marker at the collision point
+      const entity = viewer.entities.add({
+        name: `Collision Warning - ${warning.satelliteName}`,
+        position: Cartesian3.fromDegrees(
+          warning.flightPosition.lon,
+          warning.flightPosition.lat,
+          warning.flightPosition.altitude
+        ),
+        point: {
+          pixelSize: 8,
+          color: markerColor,
+          outlineColor: Color.WHITE,
+          outlineWidth: 2,
+        },
+        label: {
+          text: `⚠️ ${warning.closestDistance.toFixed(1)}km`,
+          font: "11px sans-serif",
+          fillColor: Color.WHITE,
+          outlineColor: Color.BLACK,
+          outlineWidth: 2,
+          style: LabelStyle.FILL_AND_OUTLINE,
+          verticalOrigin: VerticalOrigin.BOTTOM,
+          pixelOffset: new Cartesian2(0, -10),
+          show: true,
+        },
+      });
+
+      warningEntities.push(entity);
+    });
+
+    return warningEntities;
+  };
+
   // ISS LOGIC
   const calculatePositionFromSatrec = (satrec: any) => {
     const now = new Date();
     const positionAndVelocity = satellite.propagate(satrec, now);
     const gmst = satellite.gstime(now);
 
-    if (typeof positionAndVelocity.position === 'boolean') {
-      throw new Error('Invalid satellite position');
+    if (typeof positionAndVelocity.position === "boolean") {
+      throw new Error("Invalid satellite position");
     }
 
-    const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+    const positionGd = satellite.eciToGeodetic(
+      positionAndVelocity.position,
+      gmst
+    );
 
     const lat = satellite.degreesLat(positionGd.latitude);
     const lon = satellite.degreesLong(positionGd.longitude);
@@ -166,18 +500,18 @@ export const Globe = () => {
       }
     }
 
-if (leoVisible) {
-  leoSatellitesRef.current.forEach(({ entity, satrec }) => {
-    try {
-      const position = calculatePositionFromSatrec(satrec);
-      (entity as any).position = Cartesian3.fromDegrees(
-        position.lon,
-        position.lat,
-        position.altitude
-      );
-    } catch {}
-  });
-}
+    if (leoVisible) {
+      leoSatellitesRef.current.forEach(({ entity, satrec }) => {
+        try {
+          const position = calculatePositionFromSatrec(satrec);
+          (entity as any).position = Cartesian3.fromDegrees(
+            position.lon,
+            position.lat,
+            position.altitude
+          );
+        } catch {}
+      });
+    }
   };
 
   const addISSToGlobe = (
@@ -266,7 +600,6 @@ if (leoVisible) {
       console.log(
         `Found ${leoSatellites.length} LEO satellites out of ${data.length} total`
       );
-      
 
       // Add each LEO satellite to the globe
       leoSatellites.forEach((sat: any) => {
@@ -277,22 +610,28 @@ if (leoVisible) {
           const position = calculatePositionFromSatrec(satrec);
 
           const entity = viewer.entities.add({
-  name: sat.name || "Unknown Satellite",
-  position: Cartesian3.fromDegrees(position.lon, position.lat, position.altitude),
-  point: {
-    pixelSize: 3,
-    color: Color.fromAlpha(Color.CYAN, 0.7),
-    outlineColor: Color.fromAlpha(Color.WHITE, 0.3),
-    outlineWidth: 1,
-  },
-});
-
-
+            name: sat.name || "Unknown Satellite",
+            position: Cartesian3.fromDegrees(
+              position.lon,
+              position.lat,
+              position.altitude
+            ),
+            point: {
+              pixelSize: 3,
+              color: Color.fromAlpha(Color.CYAN, 0.7),
+              outlineColor: Color.fromAlpha(Color.WHITE, 0.3),
+              outlineWidth: 1,
+            },
+          });
 
           // Store the entity and satrec for updates
           entity.show = leoVisible;
 
-leoSatellitesRef.current.push({ entity, satrec });
+          leoSatellitesRef.current.push({
+            entity,
+            satrec,
+            name: sat.name || "Unknown",
+          });
         } catch (e) {
           // Skip satellites that can't be positioned
           console.debug("Could not position satellite:", sat.name);
@@ -301,7 +640,9 @@ leoSatellitesRef.current.push({ entity, satrec });
 
       setLeoCount(leoSatellitesRef.current.length);
 
-      console.log(`Added ${leoSatellitesRef.current.length} LEO satellites to the globe`);
+      console.log(
+        `Added ${leoSatellitesRef.current.length} LEO satellites to the globe`
+      );
       return leoSatellites;
     } catch (e) {
       console.error("Error loading sats:", e);
@@ -539,6 +880,19 @@ leoSatellitesRef.current.push({ entity, satrec });
     }
   };
 
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case "critical":
+        return "#dc2626";
+      case "danger":
+        return "#ea580c";
+      case "warning":
+        return "#f59e0b";
+      default:
+        return "#10b981";
+    }
+  };
+
   return (
     <div className="relative w-full h-screen flex">
       <div
@@ -614,6 +968,23 @@ leoSatellitesRef.current.push({ entity, satrec });
                     </div>
                     <div className="flex gap-1">
                       <button
+                        onClick={() => handleCheckSafety(flight.id)}
+                        disabled={checkingFlightId === flight.id}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-xs flex items-center justify-center gap-1"
+                      >
+                        {checkingFlightId === flight.id ? (
+                          "Checking..."
+                        ) : flight.safetyReport ? (
+                          flight.safetyReport.overallStatus === "safe" ? (
+                            <CheckCircleIcon fontSize="small" />
+                          ) : (
+                            <WarningIcon fontSize="small" />
+                          )
+                        ) : (
+                          "Check Safety"
+                        )}
+                      </button>
+                      <button
                         onClick={() => toggleFlightVisibility(flight.id)}
                         className="flex-1 bg-gray-500 hover:bg-gray-700 px-2 py-1 rounded text-xs flex items-center justify-center gap-1"
                       >
@@ -636,19 +1007,21 @@ leoSatellitesRef.current.push({ entity, satrec });
             </div>
           </div>
           <div className="mb-4 pb-4 border-b border-gray-700">
-  <h4 className="text-lg font-semibold mb-2 text-white">
-    LEO Satellites {leoCount ? `(${leoCount})` : ""}
-  </h4>
-  <div className="flex gap-1">
-    <button
-      onClick={() => applyLeoVisibility(!leoVisible)}
-      className="w-full bg-gray-500 hover:bg-gray-700 px-2 py-2 rounded text-sm flex items-center justify-center gap-2"
-    >
-      {leoVisible ? <VisibilityIcon /> : <VisibilityOffIcon />}
-      <span>{leoVisible ? "Hide LEO Satellites" : "Show LEO Satellites"}</span>
-    </button>
-  </div>
-</div>
+            <h4 className="text-lg font-semibold mb-2 text-white">
+              LEO Satellites {leoCount ? `(${leoCount})` : ""}
+            </h4>
+            <div className="flex gap-1">
+              <button
+                onClick={() => applyLeoVisibility(!leoVisible)}
+                className="w-full bg-gray-500 hover:bg-gray-700 px-2 py-2 rounded text-sm flex items-center justify-center gap-2"
+              >
+                {leoVisible ? <VisibilityIcon /> : <VisibilityOffIcon />}
+                <span>
+                  {leoVisible ? "Hide LEO Satellites" : "Show LEO Satellites"}
+                </span>
+              </button>
+            </div>
+          </div>
 
           <div>
             <h4 className="text-sm font-semibold mb-2 text-white-400">
@@ -663,6 +1036,78 @@ leoSatellitesRef.current.push({ entity, satrec });
           </div>
         </div>
       </div>
+      <Dialog
+        open={reportDialogOpen}
+        onClose={() => setReportDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Safety Report: {selectedReport?.flightName}</DialogTitle>
+        <DialogContent>
+          {selectedReport && (
+            <div>
+              <div className="mb-4">
+                <p>
+                  <strong>Status:</strong>{" "}
+                  <span
+                    style={{
+                      color: getSeverityColor(selectedReport.overallStatus),
+                    }}
+                  >
+                    {selectedReport.overallStatus.toUpperCase()}
+                  </span>
+                </p>
+                <p>
+                  <strong>Satellites Checked:</strong>{" "}
+                  {selectedReport.totalSatellitesChecked}
+                </p>
+                <p>
+                  <strong>Potential Conflicts:</strong>{" "}
+                  {selectedReport.conflictsFound}
+                </p>
+              </div>
+
+              {selectedReport.warnings.length > 0 && (
+                <div>
+                  <h4 className="font-bold mb-2">Closest Approaches:</h4>
+                  <div className="max-h-96 overflow-y-auto">
+                    {selectedReport.warnings.map((warning, idx) => (
+                      <div
+                        key={idx}
+                        className="mb-3 p-3 bg-gray-100 rounded"
+                        style={{
+                          borderLeft: `4px solid ${getSeverityColor(warning.severity)}`,
+                        }}
+                      >
+                        <p>
+                          <strong>{warning.satelliteName}</strong>
+                        </p>
+                        <p>Distance: {warning.closestDistance.toFixed(2)} km</p>
+                        <p>
+                          Time: {warning.timeOfClosestApproach.toLocaleString()}
+                        </p>
+                        <p>
+                          Severity:{" "}
+                          <span
+                            style={{
+                              color: getSeverityColor(warning.severity),
+                            }}
+                          >
+                            {warning.severity}
+                          </span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReportDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 };

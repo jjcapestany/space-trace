@@ -347,10 +347,7 @@ export const Globe = () => {
 
       conflictPoints.forEach((point) => {
         // Calculate distance from flight trajectory to conflict point
-        const distance = calculate3DDistance(
-          { lat: flight.startingLatitude, lon: flight.startingLongitude, altitude: 0 },
-          { lat: point.lat, lon: point.lon, altitude: point.altitude }
-        );
+        const distance = point.distanceKm;
 
         if (distance < closestDistance) {
           closestDistance = distance;
@@ -758,12 +755,13 @@ export const Globe = () => {
     flight2: ExtendedRegistrationInfo,
     safeDistanceKm: number,
     timeToleranceSeconds: number
-  ): Array<{ lat: number; lon: number; altitude: number; time: Date }> => {
+  ): Array<{ lat: number; lon: number; altitude: number; time: Date, distanceKm: number }> => {
     const conflictPoints: Array<{
       lat: number;
       lon: number;
       altitude: number;
       time: Date;
+      distanceKm: number;
     }> = [];
 
     const trajectory1 = calculateTrajectoryPointsWithTime(
@@ -809,6 +807,7 @@ export const Globe = () => {
             lon: (pos1.lon + pos2.lon) / 2,
             altitude: (pos1.altitude + pos2.altitude) / 2,
             time: pos1.time,
+            distanceKm: distance
           });
           break;
         }

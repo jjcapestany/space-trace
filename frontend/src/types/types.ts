@@ -41,11 +41,13 @@ export type ExtendedRegistrationInfo = RegistrationInformationType & {
 export type FlightConflict = {
   flight1Id: number;
   flight2Id: number;
+  satelliteName?: string;
   conflictPoints: Array<{
     lat: number;
     lon: number;
     altitude: number;
     time: Date;
+    distanceKm: number;
   }>;
 }
 

@@ -37,8 +37,9 @@
 
 1. Clone the [repo](https://github.com/jjcapestany/space-trace) from our remote repository.
 2. Install the frontend packages by running `cd frontend && yarn install` to install dependencies.
-3. From the project root directory, run `./gradlew bootRun`
-4. Open your browser and go to [http://localhost:8080](http://localhost:8080).
+3. Run `docker-compose up -d`
+4. From the project root directory, run `./gradlew bootRun`
+5. Open your browser and go to [http://localhost:8080](http://localhost:8080).
 
 </details>
 

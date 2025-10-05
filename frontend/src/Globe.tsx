@@ -328,31 +328,81 @@ export const Globe = () => {
       }
     });
 
-    warnings.sort((a, b) => {
-      const severityOrder = { critical: 0, danger: 1, warning: 2, safe: 3 };
-      if (severityOrder[a.severity] !== severityOrder[b.severity]) {
-        return severityOrder[a.severity] - severityOrder[b.severity];
+    const otherFlights = registeredFlights.filter(
+    (f) => f.id !== flight.id && f.visible
+  );
+
+  otherFlights.forEach((otherFlight) => {
+    const conflictPoints = findConflictPoints(
+      flight,
+      otherFlight,
+      10, // SAFE_DISTANCE_KM
+      60  // TIME_TOLERANCE_SECONDS
+    );
+
+    if (conflictPoints.length > 0) {
+      // Find the closest conflict point
+      let closestDistance = Infinity;
+      let closestConflict: CollisionWarning | null = null;
+
+      conflictPoints.forEach((point) => {
+        // Calculate distance from flight trajectory to conflict point
+        const distance = calculate3DDistance(
+          { lat: flight.startingLatitude, lon: flight.startingLongitude, altitude: 0 },
+          { lat: point.lat, lon: point.lon, altitude: point.altitude }
+        );
+
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          
+          let severity: "safe" | "warning" | "danger" | "critical";
+          if (distance < 1) severity = "critical";
+          else if (distance < 5) severity = "danger";
+          else if (distance < 10) severity = "warning";
+          else severity = "safe";
+
+          closestConflict = {
+            satelliteName: `Flight: ${otherFlight.flightName}`,
+            closestDistance: distance,
+            timeOfClosestApproach: point.time,
+            flightPosition: { lat: point.lat, lon: point.lon, altitude: point.altitude },
+            satellitePosition: { lat: point.lat, lon: point.lon, altitude: point.altitude },
+            severity,
+          };
+        }
+      });
+
+      if (closestConflict) {
+        warnings.push(closestConflict);
       }
-      return a.closestDistance - b.closestDistance;
-    });
-
-    let overallStatus: "safe" | "warning" | "danger" = "safe";
-    if (
-      warnings.some((w) => w.severity === "critical" || w.severity === "danger")
-    ) {
-      overallStatus = "danger";
-    } else if (warnings.some((w) => w.severity === "warning")) {
-      overallStatus = "warning";
     }
+  });
 
-    return {
-      flightId: flight.id,
-      flightName: flight.flightName,
-      totalSatellitesChecked: proximateSatellites.length,
-      conflictsFound: warnings.length,
-      warnings: warnings.slice(0, 20),
-      overallStatus,
-    };
+  warnings.sort((a, b) => {
+    const severityOrder = { critical: 0, danger: 1, warning: 2, safe: 3 };
+    if (severityOrder[a.severity] !== severityOrder[b.severity]) {
+      return severityOrder[a.severity] - severityOrder[b.severity];
+    }
+    return a.closestDistance - b.closestDistance;
+  });
+
+  let overallStatus: "safe" | "warning" | "danger" = "safe";
+  if (
+    warnings.some((w) => w.severity === "critical" || w.severity === "danger")
+  ) {
+    overallStatus = "danger";
+  } else if (warnings.some((w) => w.severity === "warning")) {
+    overallStatus = "warning";
+  }
+
+  return {
+    flightId: flight.id,
+    flightName: flight.flightName,
+    totalSatellitesChecked: proximateSatellites.length,
+    conflictsFound: warnings.length,
+    warnings: warnings.slice(0, 20),
+    overallStatus,
+  };
   };
 
   const visualizeCollisionWarnings = (

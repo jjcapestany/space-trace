@@ -21,9 +21,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { Stack } from '@mui/material';
-import {registerFlight} from './RegistrationPanel/client/flightRegistrationClient';
+import {getRegisteredFlights, registerFlight} from './RegistrationPanel/client/flightRegistrationClient';
 import {Alert, Snackbar} from "@mui/material";
-import RegistrationSidePanel, {RegistrationInformationType} from "./RegistrationPanel/RegistrationPanel";
 
 
 // Simple token for demo purposes
@@ -49,29 +48,29 @@ export const Globe = () => {
     const [snackbarMessage, setSnackbarMessage] = useState('');
     const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
 
-    // const handleRegistrationSubmit = async (data: Omit<RegistrationInformationType, 'id'>) => {
-    //     try {
-    //         const registeredFlight = await registerFlight(data);
-    //         console.log('Flight registered successfully:', registeredFlight);
-    //         setSnackbarMessage('Flight successfully registered!');
-    //         setSnackbarSeverity('success');
-    //         setSnackbarOpen(true);
-    //         setIsPanelOpen(false);
-    //
-    //         setIsPanelOpen(false);
-    //     } catch (error) {
-    //         console.error('Error registering flight:', error);
-    //         setSnackbarMessage('Failed to register flight. Please try again.');
-    //         setSnackbarSeverity('error');
-    //         setSnackbarOpen(true);
-    //     }
-    // };
-
     const handleSnackbarClose = () => {
         setSnackbarOpen(false);
     };
 
     useEffect(() => {
+        // getRegisteredFlights().then((flights) => {
+        //     const extendedFlights: ExtendedRegistrationInfo[] = flights.map(flight => {
+        //         const extended: ExtendedRegistrationInfo = {
+        //             ...flight,
+        //             visible: true,
+        //             entities: []
+        //         };
+        //
+        //         extended.entities = createFlightPathForRegistration(extended);
+        //         return extended;
+        //     });
+        //     setRegisteredFlights(extendedFlights);
+        // }).catch((error) => {
+        //     console.error('Error loading registered flights:', error);
+        //     setSnackbarMessage('Failed to load registered flights');
+        //     setSnackbarSeverity('error');
+        //     setSnackbarOpen(true);
+        // });
         if (!containerRef.current) return;
 
         const viewer = new Viewer(containerRef.current, {
@@ -92,6 +91,27 @@ export const Globe = () => {
         })();
 
         loadISS();
+
+        getRegisteredFlights().then((flights) => {
+            const extendedFlights: ExtendedRegistrationInfo[] = flights.map(flight => {
+                const extended: ExtendedRegistrationInfo = {
+                    ...flight,
+                    launchDateAndTime: new Date(flight.launchDateAndTime),
+                    landingDateAndTime: new Date(flight.landingDateAndTime),
+                    visible: true,
+                    entities: []
+                };
+
+                extended.entities = createFlightPathForRegistration(extended);
+                return extended;
+            });
+            setRegisteredFlights(extendedFlights);
+        }).catch((error) => {
+            console.error('Error loading registered flights:', error);
+            setSnackbarMessage('Failed to load registered flights');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        });
 
         return () => {
             cancelled = true;

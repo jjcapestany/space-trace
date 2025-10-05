@@ -3,6 +3,7 @@ import { RegistrationInformationType } from '../RegistrationPanel';
 
 const API_ENDPOINTS = {
     REGISTER_FLIGHT: 'api/register-flight',
+    GET_FLIGHTS: 'api/register'
 };
 
 export const registerFlight = (

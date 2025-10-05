@@ -434,7 +434,7 @@ leoSatellitesRef.current.push({ entity, satrec });
     };
 
     const detectConflicts = (flights: ExtendedRegistrationInfo[]): FlightConflict[] => {
-        const SAFE_DISTANCE_KM = 201;
+        const SAFE_DISTANCE_KM = 10;
         const TIME_TOLERANCE_SECONDS = 60;
         const conflicts: FlightConflict[] = [];
 

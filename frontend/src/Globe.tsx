@@ -41,6 +41,8 @@ export const Globe = () => {
   const viewerRef = useRef<Viewer | null>(null);
   const issEntityRef = useRef<Entity | null>(null);
   const leoSatellitesRef = useRef<Array<{ entity: Entity; satrec: any }>>([]);
+  const [leoVisible, setLeoVisible] = useState(true);
+  const [leoCount, setLeoCount] = useState(0);
   const [issLoaded, setIssLoaded] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [registeredFlights, setRegisteredFlights] = useState<
@@ -53,6 +55,13 @@ export const Globe = () => {
   const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">(
     "success"
   );
+
+  const applyLeoVisibility = (show: boolean) => {
+  leoSatellitesRef.current.forEach(({ entity }) => {
+    entity.show = show;
+  });
+  setLeoVisible(show);
+};
 
   const handleSnackbarClose = () => {
     setSnackbarOpen(false);
@@ -157,19 +166,18 @@ export const Globe = () => {
       }
     }
 
-    // Update all LEO satellites
-    leoSatellitesRef.current.forEach(({ entity, satrec }) => {
-      try {
-        const position = calculatePositionFromSatrec(satrec);
-        (entity as any).position = Cartesian3.fromDegrees(
-          position.lon,
-          position.lat,
-          position.altitude
-        );
-      } catch (e) {
-        // Skip if position calculation fails
-      }
-    });
+if (leoVisible) {
+  leoSatellitesRef.current.forEach(({ entity, satrec }) => {
+    try {
+      const position = calculatePositionFromSatrec(satrec);
+      (entity as any).position = Cartesian3.fromDegrees(
+        position.lon,
+        position.lat,
+        position.altitude
+      );
+    } catch {}
+  });
+}
   };
 
   const addISSToGlobe = (
@@ -258,6 +266,7 @@ export const Globe = () => {
       console.log(
         `Found ${leoSatellites.length} LEO satellites out of ${data.length} total`
       );
+      
 
       // Add each LEO satellite to the globe
       leoSatellites.forEach((sat: any) => {
@@ -268,27 +277,29 @@ export const Globe = () => {
           const position = calculatePositionFromSatrec(satrec);
 
           const entity = viewer.entities.add({
-            name: sat.name || "Unknown Satellite",
-            position: Cartesian3.fromDegrees(
-              position.lon,
-              position.lat,
-              position.altitude
-            ),
-            point: {
-              pixelSize: 3,
-              color: Color.fromAlpha(Color.CYAN, 0.7),
-              outlineColor: Color.fromAlpha(Color.WHITE, 0.3),
-              outlineWidth: 1,
-            },
-          });
+  name: sat.name || "Unknown Satellite",
+  position: Cartesian3.fromDegrees(position.lon, position.lat, position.altitude),
+  point: {
+    pixelSize: 3,
+    color: Color.fromAlpha(Color.CYAN, 0.7),
+    outlineColor: Color.fromAlpha(Color.WHITE, 0.3),
+    outlineWidth: 1,
+  },
+});
+
+
 
           // Store the entity and satrec for updates
-          leoSatellitesRef.current.push({ entity, satrec });
+          entity.show = leoVisible;
+
+leoSatellitesRef.current.push({ entity, satrec });
         } catch (e) {
           // Skip satellites that can't be positioned
           console.debug("Could not position satellite:", sat.name);
         }
       });
+
+      setLeoCount(leoSatellitesRef.current.length);
 
       console.log(`Added ${leoSatellitesRef.current.length} LEO satellites to the globe`);
       return leoSatellites;
@@ -624,6 +635,20 @@ export const Globe = () => {
               )}
             </div>
           </div>
+          <div className="mb-4 pb-4 border-b border-gray-700">
+  <h4 className="text-lg font-semibold mb-2 text-white">
+    LEO Satellites {leoCount ? `(${leoCount})` : ""}
+  </h4>
+  <div className="flex gap-1">
+    <button
+      onClick={() => applyLeoVisibility(!leoVisible)}
+      className="w-full bg-gray-500 hover:bg-gray-700 px-2 py-2 rounded text-sm flex items-center justify-center gap-2"
+    >
+      {leoVisible ? <VisibilityIcon /> : <VisibilityOffIcon />}
+      <span>{leoVisible ? "Hide LEO Satellites" : "Show LEO Satellites"}</span>
+    </button>
+  </div>
+</div>
 
           <div>
             <h4 className="text-sm font-semibold mb-2 text-white-400">

@@ -1261,7 +1261,7 @@ export const Globe = () => {
               </div>
             </div>
           )}
-          <div className="mb-4 pb-4 border-b border-gray-700">
+          <div className="mb-4 pb-5">
             <h4 className="text-lg font-semibold mb-2 text-white">
               Registered Flights ({registeredFlights.length})
             </h4>
@@ -1329,22 +1329,7 @@ export const Globe = () => {
               )}
             </div>
           </div>
-          <div className="mb-4 pb-4 border-gray-700">
-            <h4 className="text-lg font-semibold mb-2 text-white">
-              LEO Satellites {leoCount ? `(${leoCount})` : ""}
-            </h4>
-            <div className="flex gap-1">
-              <button
-                onClick={() => applyLeoVisibility(!leoVisible)}
-                className="w-full bg-gray-500 hover:bg-gray-700 px-2 py-2 rounded text-sm flex items-center justify-center gap-2"
-              >
-                {leoVisible ? <VisibilityIcon /> : <VisibilityOffIcon />}
-                <span>
-                  {leoVisible ? "Hide LEO Satellites" : "Show LEO Satellites"}
-                </span>
-              </button>
-            </div>
-          </div>
+          
         </div>
       </div>
       <Dialog
@@ -1352,6 +1337,12 @@ export const Globe = () => {
         onClose={() => setReportDialogOpen(false)}
         maxWidth="md"
         fullWidth
+        sx={{
+        '& .MuiDialog-paper': {
+        backgroundColor: '#1a1a1a', // Dark background
+        color: '#ffffff', // White text
+        }
+  }}
       >
         <DialogTitle>Safety Report: {selectedReport?.flightName}</DialogTitle>
         <DialogContent>
@@ -1385,7 +1376,7 @@ export const Globe = () => {
                     {selectedReport.warnings.map((warning, idx) => (
                       <div
                         key={idx}
-                        className="mb-3 p-3 bg-gray-100 rounded"
+                        className="mb-3 p-3 bg-black rounded"
                         style={{
                           borderLeft: `4px solid ${getSeverityColor(warning.severity)}`,
                         }}
@@ -1419,6 +1410,20 @@ export const Globe = () => {
           <Button onClick={() => setReportDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+      <div className="mb-4 pb-4 border-gray-700 absolute bottom-4 right-4" >
+            <h4 className="text-lg font-semibold mb-2 text-white">
+              LEO Satellites
+            </h4>
+            <div className="flex gap-1">
+              <button
+                onClick={() => applyLeoVisibility(!leoVisible)}
+                className="w-full bg-gray-500 hover:bg-gray-700 px-2 py-2 text-white rounded text-sm flex items-center justify-center gap-2"
+              >
+                {leoVisible ? <VisibilityIcon /> : <VisibilityOffIcon />}
+               
+              </button>
+            </div>
+          </div>
     </div>
   );
 };

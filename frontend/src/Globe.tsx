@@ -27,6 +27,7 @@ import {
 import { Alert, Snackbar } from "@mui/material";
 import WarningIcon from "@mui/icons-material/Warning";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import HealthAndSafetyIcon from '@mui/icons-material/HealthAndSafety';
 import {
   Stack,
   Dialog,
@@ -1153,7 +1154,7 @@ export const Globe = () => {
                       <button
                         onClick={() => handleCheckSafety(flight.id)}
                         disabled={checkingFlightId === flight.id}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-xs flex items-center justify-center gap-1"
+                        className="flex-1 hover:bg-green-600 px-2 py-1 rounded text-xs bg-green-700 flex items-center justify-center gap-1"
                       >
                         {checkingFlightId === flight.id ? (
                           "Checking..."
@@ -1164,7 +1165,7 @@ export const Globe = () => {
                             <WarningIcon fontSize="small" />
                           )
                         ) : (
-                          "Check Safety"
+                          <HealthAndSafetyIcon/>
                         )}
                       </button>
                       <button

@@ -6,6 +6,7 @@ build/
 !**/src/test/**/build/
 .kotlin
 frontend/node_modules
+postgres-data/
 
 ### IntelliJ IDEA ###
 .idea/modules.xml

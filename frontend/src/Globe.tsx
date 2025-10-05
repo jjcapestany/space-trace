@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import {
-    Ion,
-    Viewer,
-    Terrain,
-    Cartesian3,
-    Color,
-    LabelStyle,
-    VerticalOrigin,
-    Cartesian2,
-    Math as CesiumMath,
-    createOsmBuildingsAsync,
-    PolylineGlowMaterialProperty,
-    Entity
+  Ion,
+  Viewer,
+  Terrain,
+  Cartesian3,
+  Color,
+  LabelStyle,
+  VerticalOrigin,
+  Cartesian2,
+  Math as CesiumMath,
+  createOsmBuildingsAsync,
+  PolylineGlowMaterialProperty,
+  Entity,
 } from "cesium";
 import * as satellite from "satellite.js";
 import "cesium/Build/Cesium/Widgets/widgets.css";
@@ -23,7 +23,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { Stack } from "@mui/material";
-import { getRegisteredFlights,registerFlight } from "./RegistrationPanel/client/flightRegistrationClient";
+import { getRegisteredFlights, registerFlight } from "./RegistrationPanel/client/flightRegistrationClient";
 import { Alert, Snackbar } from "@mui/material";
 
 // Simple token for demo purposes
@@ -40,6 +40,7 @@ export const Globe = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const issEntityRef = useRef<Entity | null>(null);
+  const leoSatellitesRef = useRef<Array<{ entity: Entity; satrec: any }>>([]);
   const [issLoaded, setIssLoaded] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [registeredFlights, setRegisteredFlights] = useState<
@@ -58,25 +59,7 @@ export const Globe = () => {
   };
 
   useEffect(() => {
-    // getRegisteredFlights().then((flights) => {
-        //     const extendedFlights: ExtendedRegistrationInfo[] = flights.map(flight => {
-        //         const extended: ExtendedRegistrationInfo = {
-        //             ...flight,
-        //             visible: true,
-        //             entities: []
-        //         };
-        //
-        //         extended.entities = createFlightPathForRegistration(extended);
-        //         return extended;
-        //     });
-        //     setRegisteredFlights(extendedFlights);
-        // }).catch((error) => {
-        //     console.error('Error loading registered flights:', error);
-        //     setSnackbarMessage('Failed to load registered flights');
-        //     setSnackbarSeverity('error');
-        //     setSnackbarOpen(true);
-        // });
-        if (!containerRef.current) return;
+    if (!containerRef.current) return;
 
     const viewer = new Viewer(containerRef.current, {
       terrain: Terrain.fromWorldTerrain(),
@@ -98,27 +81,37 @@ export const Globe = () => {
     loadISS();
     loadLEOSatellites();
 
+    // Load registered flights from backend
     getRegisteredFlights().then((flights) => {
-            const extendedFlights: ExtendedRegistrationInfo[] = flights.map(flight => {
-                const extended: ExtendedRegistrationInfo = {
-                    ...flight,
-                    launchDateAndTime: new Date(flight.launchDateAndTime),
-                    landingDateAndTime: new Date(flight.landingDateAndTime),
-                    visible: true,
-                    entities: []
-                };
+      const extendedFlights: ExtendedRegistrationInfo[] = flights.map(flight => {
+        const extended: ExtendedRegistrationInfo = {
+          ...flight,
+          launchDateAndTime: new Date(flight.launchDateAndTime),
+          landingDateAndTime: new Date(flight.landingDateAndTime),
+          visible: true,
+          entities: []
+        };
 
-                extended.entities = createFlightPathForRegistration(extended);
-                return extended;
-            });
-            setRegisteredFlights(extendedFlights);
-        }).catch((error) => {
-            console.error('Error loading registered flights:', error);
-            setSnackbarMessage('Failed to load registered flights');
-            setSnackbarSeverity('error');
-            setSnackbarOpen(true);
-        });return () => {
+        extended.entities = createFlightPathForRegistration(extended);
+        return extended;
+      });
+      setRegisteredFlights(extendedFlights);
+    }).catch((error) => {
+      console.error('Error loading registered flights:', error);
+      setSnackbarMessage('Failed to load registered flights');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    });
+
+    // Animation loop for real-time satellite updates
+    const animationInterval = setInterval(() => {
+      if (cancelled) return;
+      updateSatellitePositions();
+    }, 10000); 
+
+    return () => {
       cancelled = true;
+      clearInterval(animationInterval);
       try {
         viewer.destroy();
       } catch (e) {
@@ -128,14 +121,13 @@ export const Globe = () => {
   }, []);
 
   // ISS LOGIC
-  const calculateISSPosition = (tle1: string, tle2: string) => {
-    const satrec = satellite.twoline2satrec(tle1, tle2);
+  const calculatePositionFromSatrec = (satrec: any) => {
     const now = new Date();
     const positionAndVelocity = satellite.propagate(satrec, now);
     const gmst = satellite.gstime(now);
 
     if (typeof positionAndVelocity.position === 'boolean') {
-        throw new Error('Invalid satellite position');
+      throw new Error('Invalid satellite position');
     }
 
     const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
@@ -143,8 +135,42 @@ export const Globe = () => {
     const lat = satellite.degreesLat(positionGd.latitude);
     const lon = satellite.degreesLong(positionGd.longitude);
     const altitude = positionGd.height * 1000;
-    return {lat, lon, altitude};
-};
+    return { lat, lon, altitude };
+  };
+
+  const calculateISSPosition = (tle1: string, tle2: string) => {
+    const satrec = satellite.twoline2satrec(tle1, tle2);
+    return calculatePositionFromSatrec(satrec);
+  };
+
+  const updateSatellitePositions = () => {
+    // Update ISS
+    if (issEntityRef.current) {
+      const issEntity = issEntityRef.current as any;
+      if (issEntity.satrec) {
+        const position = calculatePositionFromSatrec(issEntity.satrec);
+        issEntity.position = Cartesian3.fromDegrees(
+          position.lon,
+          position.lat,
+          position.altitude
+        );
+      }
+    }
+
+    // Update all LEO satellites
+    leoSatellitesRef.current.forEach(({ entity, satrec }) => {
+      try {
+        const position = calculatePositionFromSatrec(satrec);
+        (entity as any).position = Cartesian3.fromDegrees(
+          position.lon,
+          position.lat,
+          position.altitude
+        );
+      } catch (e) {
+        // Skip if position calculation fails
+      }
+    });
+  };
 
   const addISSToGlobe = (
     data: any,
@@ -156,6 +182,8 @@ export const Globe = () => {
     if (issEntityRef.current) {
       viewer.entities.remove(issEntityRef.current);
     }
+
+    const satrec = satellite.twoline2satrec(data.TLE_LINE_1, data.TLE_LINE_2);
 
     const issEntity = viewer.entities.add({
       name: "ISS",
@@ -180,8 +208,10 @@ export const Globe = () => {
         verticalOrigin: VerticalOrigin.BOTTOM,
         pixelOffset: new Cartesian2(0, -20),
       },
-    });
+    }) as any;
 
+    // Store satrec for real-time updates
+    issEntity.satrec = satrec;
     issEntityRef.current = issEntity;
     setIssLoaded(true);
   };
@@ -234,9 +264,10 @@ export const Globe = () => {
         try {
           if (!sat.tle1 || !sat.tle2) return;
 
-          const position = calculateISSPosition(sat.tle1, sat.tle2);
+          const satrec = satellite.twoline2satrec(sat.tle1, sat.tle2);
+          const position = calculatePositionFromSatrec(satrec);
 
-          viewer.entities.add({
+          const entity = viewer.entities.add({
             name: sat.name || "Unknown Satellite",
             position: Cartesian3.fromDegrees(
               position.lon,
@@ -250,13 +281,16 @@ export const Globe = () => {
               outlineWidth: 1,
             },
           });
+
+          // Store the entity and satrec for updates
+          leoSatellitesRef.current.push({ entity, satrec });
         } catch (e) {
           // Skip satellites that can't be positioned
           console.debug("Could not position satellite:", sat.name);
         }
       });
 
-      console.log(`Added ${leoSatellites.length} LEO satellites to the globe`);
+      console.log(`Added ${leoSatellitesRef.current.length} LEO satellites to the globe`);
       return leoSatellites;
     } catch (e) {
       console.error("Error loading sats:", e);
@@ -429,8 +463,9 @@ export const Globe = () => {
     setIsPanelOpen(false);
 
     const newFlight: ExtendedRegistrationInfo = {
-      ...data,
-      id: nextFlightId,
+      ...registeredFlight,
+      launchDateAndTime: new Date(registeredFlight.launchDateAndTime),
+      landingDateAndTime: new Date(registeredFlight.landingDateAndTime),
       visible: true,
       entities: [],
     };
@@ -439,8 +474,6 @@ export const Globe = () => {
     newFlight.entities = entities;
 
     setRegisteredFlights((prev) => [...prev, newFlight]);
-    setNextFlightId((prev) => prev + 1);
-    setIsPanelOpen(false);
 
     // Fly camera to view the new flight
     if (viewerRef.current) {
@@ -486,13 +519,6 @@ export const Globe = () => {
 
     setRegisteredFlights((prev) => prev.filter((f) => f.id !== flightId));
   };
-
-  // const trackISS = () => {
-  //     const viewer = viewerRef.current;
-  //     if (viewer && issEntityRef.current) {
-  //         viewer.trackedEntity = issEntityRef.current;
-  //     }
-  // };
 
   const resetCamera = () => {
     const viewer = viewerRef.current;

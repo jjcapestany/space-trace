@@ -27,7 +27,7 @@ import {
 import { Alert, Snackbar } from "@mui/material";
 import WarningIcon from "@mui/icons-material/Warning";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import HealthAndSafetyIcon from '@mui/icons-material/HealthAndSafety';
+import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
 import {
   Stack,
   Dialog,
@@ -36,7 +36,13 @@ import {
   DialogActions,
   Button,
 } from "@mui/material";
-import type { ExtendedRegistrationInfo, FlightConflict, SafetyReport, CollisionWarning, RegistrationInformationType  } from "./types/types";
+import type {
+  ExtendedRegistrationInfo,
+  FlightConflict,
+  SafetyReport,
+  CollisionWarning,
+  RegistrationInformationType,
+} from "./types/types";
 
 Ion.defaultAccessToken =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZTkyYmQ4MS0wM2MwLTQ0YzYtYTc0MS1kYjQwNjZjODRjOWUiLCJpZCI6MzQ3MjI0LCJpYXQiOjE3NTk2MDA2MTB9.wiksTWk3Mhnj7FRgME5pKyowzjZwDtYKSruNoxrDIHc";
@@ -132,6 +138,21 @@ export const Globe = () => {
           }
         );
         setRegisteredFlights(extendedFlights);
+
+        setTimeout(() => {
+          extendedFlights.forEach((flight) => {
+            const report = analyzeFlightSafety(flight);
+            const warningEntities = visualizeCollisionWarnings(flight, report);
+
+            setRegisteredFlights((prev) =>
+              prev.map((f) =>
+                f.id === flight.id
+                  ? { ...f, safetyReport: report, warningEntities }
+                  : f
+              )
+            );
+          });
+        }, 1000);
       })
       .catch((error) => {
         console.error("Error loading registered flights:", error);
@@ -329,77 +350,85 @@ export const Globe = () => {
     });
 
     const otherFlights = registeredFlights.filter(
-    (f) => f.id !== flight.id && f.visible
-  );
-
-  otherFlights.forEach((otherFlight) => {
-    const conflictPoints = findConflictPoints(
-      flight,
-      otherFlight,
-      10, // SAFE_DISTANCE_KM
-      60  // TIME_TOLERANCE_SECONDS
+      (f) => f.id !== flight.id && f.visible
     );
 
-    if (conflictPoints.length > 0) {
-      // Find the closest conflict point
-      let closestDistance = Infinity;
-      let closestConflict: CollisionWarning | null = null;
+    otherFlights.forEach((otherFlight) => {
+      const conflictPoints = findConflictPoints(
+        flight,
+        otherFlight,
+        10, // SAFE_DISTANCE_KM
+        60 // TIME_TOLERANCE_SECONDS
+      );
 
-      conflictPoints.forEach((point) => {
-        // Calculate distance from flight trajectory to conflict point
-        const distance = point.distanceKm;
+      if (conflictPoints.length > 0) {
+        // Find the closest conflict point
+        let closestDistance = Infinity;
+        let closestConflict: CollisionWarning | null = null;
 
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          
-          let severity: "safe" | "warning" | "danger" | "critical";
-          if (distance < 1) severity = "critical";
-          else if (distance < 5) severity = "danger";
-          else if (distance < 10) severity = "warning";
-          else severity = "safe";
+        conflictPoints.forEach((point) => {
+          // Calculate distance from flight trajectory to conflict point
+          const distance = point.distanceKm;
 
-          closestConflict = {
-            satelliteName: `Flight: ${otherFlight.flightName}`,
-            closestDistance: distance,
-            timeOfClosestApproach: point.time,
-            flightPosition: { lat: point.lat, lon: point.lon, altitude: point.altitude },
-            satellitePosition: { lat: point.lat, lon: point.lon, altitude: point.altitude },
-            severity,
-          };
+          if (distance < closestDistance) {
+            closestDistance = distance;
+
+            let severity: "safe" | "warning" | "danger" | "critical";
+            if (distance < 1) severity = "critical";
+            else if (distance < 5) severity = "danger";
+            else if (distance < 10) severity = "warning";
+            else severity = "safe";
+
+            closestConflict = {
+              satelliteName: `Flight: ${otherFlight.flightName}`,
+              closestDistance: distance,
+              timeOfClosestApproach: point.time,
+              flightPosition: {
+                lat: point.lat,
+                lon: point.lon,
+                altitude: point.altitude,
+              },
+              satellitePosition: {
+                lat: point.lat,
+                lon: point.lon,
+                altitude: point.altitude,
+              },
+              severity,
+            };
+          }
+        });
+
+        if (closestConflict) {
+          warnings.push(closestConflict);
         }
-      });
-
-      if (closestConflict) {
-        warnings.push(closestConflict);
       }
+    });
+
+    warnings.sort((a, b) => {
+      const severityOrder = { critical: 0, danger: 1, warning: 2, safe: 3 };
+      if (severityOrder[a.severity] !== severityOrder[b.severity]) {
+        return severityOrder[a.severity] - severityOrder[b.severity];
+      }
+      return a.closestDistance - b.closestDistance;
+    });
+
+    let overallStatus: "safe" | "warning" | "danger" = "safe";
+    if (
+      warnings.some((w) => w.severity === "critical" || w.severity === "danger")
+    ) {
+      overallStatus = "danger";
+    } else if (warnings.some((w) => w.severity === "warning")) {
+      overallStatus = "warning";
     }
-  });
 
-  warnings.sort((a, b) => {
-    const severityOrder = { critical: 0, danger: 1, warning: 2, safe: 3 };
-    if (severityOrder[a.severity] !== severityOrder[b.severity]) {
-      return severityOrder[a.severity] - severityOrder[b.severity];
-    }
-    return a.closestDistance - b.closestDistance;
-  });
-
-  let overallStatus: "safe" | "warning" | "danger" = "safe";
-  if (
-    warnings.some((w) => w.severity === "critical" || w.severity === "danger")
-  ) {
-    overallStatus = "danger";
-  } else if (warnings.some((w) => w.severity === "warning")) {
-    overallStatus = "warning";
-  }
-
-  return {
-    flightId: flight.id,
-    flightName: flight.flightName,
-    totalSatellitesChecked: proximateSatellites.length,
-    conflictsFound: warnings.length,
-    warnings: warnings.slice(0, 20),
-    overallStatus,
-  };
+    return {
+      flightId: flight.id,
+      flightName: flight.flightName,
+      totalSatellitesChecked: proximateSatellites.length,
+      conflictsFound: warnings.length,
+      warnings: warnings.slice(0, 20),
+      overallStatus,
+    };
   };
 
   const visualizeCollisionWarnings = (
@@ -755,7 +784,13 @@ export const Globe = () => {
     flight2: ExtendedRegistrationInfo,
     safeDistanceKm: number,
     timeToleranceSeconds: number
-  ): Array<{ lat: number; lon: number; altitude: number; time: Date, distanceKm: number }> => {
+  ): Array<{
+    lat: number;
+    lon: number;
+    altitude: number;
+    time: Date;
+    distanceKm: number;
+  }> => {
     const conflictPoints: Array<{
       lat: number;
       lon: number;
@@ -807,7 +842,7 @@ export const Globe = () => {
             lon: (pos1.lon + pos2.lon) / 2,
             altitude: (pos1.altitude + pos2.altitude) / 2,
             time: pos1.time,
-            distanceKm: distance
+            distanceKm: distance,
           });
           break;
         }
@@ -842,11 +877,39 @@ export const Globe = () => {
           conflicts.push({
             flight1Id: flight1.id,
             flight2Id: flight2.id,
+            satelliteName: undefined,
             conflictPoints,
           });
         }
       }
     }
+
+    visibleFlights.forEach((flight) => {
+      if (flight.safetyReport && flight.safetyReport.warnings.length > 0) {
+        flight.safetyReport.warnings.forEach((warning) => {
+          if (
+            warning.severity === "critical" ||
+            warning.severity === "danger" ||
+            warning.severity === "warning"
+          ) {
+            conflicts.push({
+              flight1Id: flight.id,
+              flight2Id: -1,
+              satelliteName: warning.satelliteName,
+              conflictPoints: [
+                {
+                  lat: warning.flightPosition.lat,
+                  lon: warning.flightPosition.lon,
+                  altitude: warning.flightPosition.altitude,
+                  time: warning.timeOfClosestApproach,
+                  distanceKm: warning.closestDistance,
+                },
+              ],
+            });
+          }
+        });
+      }
+    });
 
     return conflicts;
   };
@@ -1034,6 +1097,19 @@ export const Globe = () => {
 
     setRegisteredFlights((prev) => [...prev, newFlight]);
 
+    setTimeout(() => {
+      const report = analyzeFlightSafety(newFlight);
+      const warningEntities = visualizeCollisionWarnings(newFlight, report);
+
+      setRegisteredFlights((prev) =>
+        prev.map((f) =>
+          f.id === newFlight.id
+            ? { ...f, safetyReport: report, warningEntities }
+            : f
+        )
+      );
+    }, 500);
+
     if (viewerRef.current) {
       const midLat = (data.startingLatitude + data.endingLatitude) / 2;
       const midLon = (data.startingLongitude + data.endingLongitude) / 2;
@@ -1088,14 +1164,6 @@ export const Globe = () => {
     }
 
     setRegisteredFlights((prev) => prev.filter((f) => f.id !== flightId));
-  };
-
-  const resetCamera = () => {
-    const viewer = viewerRef.current;
-    if (viewer) {
-      viewer.trackedEntity = undefined;
-      viewer.camera.flyHome(1);
-    }
   };
 
   return (
@@ -1160,16 +1228,23 @@ export const Globe = () => {
                   const flight2 = registeredFlights.find(
                     (f) => f.id === conflict.flight2Id
                   );
+
+                  const isSatelliteConflict = conflict.flight2Id === -1;
+
                   return (
                     <div
                       key={idx}
                       className="bg-red-900 bg-opacity-30 p-2 rounded text-sm border border-red-500"
                     >
                       <div className="font-semibold text-red-300">
-                        {flight1?.flightName} ↔ {flight2?.flightName}
+                        {isSatelliteConflict
+                          ? `${flight1?.flightName} ↔ ${conflict.satelliteName || "Satellite"}`
+                          : `${flight1?.flightName} ↔ ${flight2?.flightName}`}
                       </div>
                       <div className="text-xs text-red-400">
-                        {conflict.conflictPoints.length} conflict point(s)
+                        {isSatelliteConflict
+                          ? `${conflict.conflictPoints[0].distanceKm.toFixed(2)} km at ${conflict.conflictPoints[0].time.toLocaleTimeString()}`
+                          : `${conflict.conflictPoints.length} conflict point(s) - Min: ${Math.min(...conflict.conflictPoints.map((p) => p.distanceKm)).toFixed(2)} km`}
                       </div>
                     </div>
                   );
@@ -1203,21 +1278,24 @@ export const Globe = () => {
                       <button
                         onClick={() => handleCheckSafety(flight.id)}
                         disabled={checkingFlightId === flight.id}
-                        className={flight.safetyReport ? (
-                          flight.safetyReport.overallStatus === "safe" ? ("flex-1 px-2 py-1 rounded text-xs flex items-center justify-center gap-1 hover:bg-green-600 bg-green-700") :
-                            ("flex-1 px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-yellow-600 hover:bg-yellow-500")
-                        ) : ("flex-1 px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-gray-500 hover:bg-gray-700")}
+                        className={
+                          flight.safetyReport
+                            ? flight.safetyReport.overallStatus === "safe"
+                              ? "flex-1 px-2 py-1 rounded text-xs flex items-center justify-center gap-1 hover:bg-green-600 bg-green-700"
+                              : "flex-1 px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-yellow-600 hover:bg-yellow-500"
+                            : "flex-1 px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-gray-500 hover:bg-gray-700"
+                        }
                       >
                         {checkingFlightId === flight.id ? (
                           "Checking..."
                         ) : flight.safetyReport ? (
                           flight.safetyReport.overallStatus === "safe" ? (
-                                <CheckCircleIcon fontSize="small" />
+                            <CheckCircleIcon fontSize="small" />
                           ) : (
-                                <WarningIcon fontSize="small" />
+                            <WarningIcon fontSize="small" />
                           )
                         ) : (
-                                <HealthAndSafetyIcon/>
+                          <HealthAndSafetyIcon />
                         )}
                       </button>
                       <button

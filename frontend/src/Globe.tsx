@@ -1154,18 +1154,21 @@ export const Globe = () => {
                       <button
                         onClick={() => handleCheckSafety(flight.id)}
                         disabled={checkingFlightId === flight.id}
-                        className="flex-1 hover:bg-green-600 px-2 py-1 rounded text-xs bg-green-700 flex items-center justify-center gap-1"
+                        className={flight.safetyReport ? (
+                          flight.safetyReport.overallStatus === "safe" ? ("flex-1 px-2 py-1 rounded text-xs flex items-center justify-center gap-1 hover:bg-green-600 bg-green-700") :
+                            ("flex-1 px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-yellow-600 hover:bg-yellow-500")
+                        ) : ("flex-1 px-2 py-1 rounded text-xs flex items-center justify-center gap-1 bg-gray-500 hover:bg-gray-700")}
                       >
                         {checkingFlightId === flight.id ? (
                           "Checking..."
                         ) : flight.safetyReport ? (
                           flight.safetyReport.overallStatus === "safe" ? (
-                            <CheckCircleIcon fontSize="small" />
+                                <CheckCircleIcon fontSize="small" />
                           ) : (
-                            <WarningIcon fontSize="small" />
+                                <WarningIcon fontSize="small" />
                           )
                         ) : (
-                          <HealthAndSafetyIcon/>
+                                <HealthAndSafetyIcon/>
                         )}
                       </button>
                       <button
